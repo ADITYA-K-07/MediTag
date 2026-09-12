@@ -29,7 +29,9 @@ Python backend  --signs & writes-->  NFC tag  --tap-->  Reader app (verifies off
 
 ## Status
 
-Early build phase — see [`EDI.md`](./EDI.md) for the full living project spec, current build priorities, open design questions, and a session-by-session log of what's been done and what's next.
+The MVP foundation is built: FastAPI issues compact signed payloads, Flutter verifies them entirely offline, and an automated cross-language test proves a Python-issued P-256 signature verifies in Flutter. See [`EDI.md`](./EDI.md) for the full living project spec, current build priorities, open design questions, and session history.
+
+Start the API from [`backend/README.md`](./backend/README.md), then follow the setup notes in [`reader_app/README.md`](./reader_app/README.md) to run the physical-phone reader.
 
 ## Not in scope yet
 

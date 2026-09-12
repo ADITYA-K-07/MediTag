@@ -1,0 +1,17 @@
+# Runtime secrets and patient data must never be committed.
+backend/.env
+backend/data/
+backend/keys/
+
+# Python
+backend/.venv/
+backend/.pytest_cache/
+backend/**/__pycache__/
+
+# Flutter
+reader_app/.dart_tool/
+reader_app/build/
+reader_app/.idea/
+reader_app/.metadata
+reader_app/.flutter-plugins
+reader_app/.flutter-plugins-dependencies
