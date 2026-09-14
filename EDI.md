@@ -6,12 +6,18 @@ This is the living reference doc for the MediTag semester project. Update the **
 
 ## 1. Project Overview
 
-**MediTag** is an NFC-based medical ID tag system. A patient wears/carries an NFC tag. **Hardware purchased: DIGINESS NTAG213 stickers (pack of 10), 13.56 MHz — 144 bytes usable memory.** (Note: earlier design discussion assumed NTAG216's 888 bytes; the actual hardware is NTAG213, which is far tighter — see Section 5a for the resulting byte layout.) Tapping the tag with a phone reveals medical information in tiers:
+**MediTag** is an NFC-based medical ID tag system. A patient wears/carries an NFC tag. **Hardware purchased: DIGINESS NTAG213 stickers (pack of 10), 13.56 MHz — 144 bytes usable memory.** (Note: earlier design discussion assumed NTAG216's 888 bytes; the actual hardware is NTAG213, which is far tighter — see Section 5a for the resulting byte layout.)
+
+The app has **three distinct access surfaces**, confirmed as of 2026-09-14:
+
+1. **Anonymous bystander tap (no login)** — anyone taps the tag with any phone and sees Tier 1 critical info instantly, offline, cryptographically verified. This is the emergency-access core of the product and is why Tier 1 has to work with zero connectivity and zero account — a stranger helping an unconscious person has neither. This is the flow already specced in [`FRONTEND_DESIGN.md`](./FRONTEND_DESIGN.md) and currently being rebuilt.
+2. **Citizen login (patient's own app)** — the tag owner logs in (email/phone + password, with forgot-password) to manage their own profile: view their own basic info, update their medical profile over time, and upload fuller medical history to the cloud (this becomes the Tier 2 data doctors see). New vs. returning users are distinguished by checking whether their email/phone pairing already has a MediTag profile.
+3. **Doctor login (clinician app)** — a verified clinician logs in, then taps a tag from a "Tap to Scan" home screen to see the patient's full structured record (Tier 2, gated/authorized access).
 
 - **Tier 1 (on-tag, always available):** critical info stored directly on the tag — readable instantly, offline, by anyone (allergies, blood type, emergency contact, critical conditions). Signed so it can be verified as authentic without any network connection.
-- **Tier 2 (cloud, gated):** fuller medical record, fetched from the backend, shown only to authorized/authenticated roles (e.g. verified medical personnel) when online.
+- **Tier 2 (cloud, gated):** fuller medical record, entered/uploaded by the citizen via their own app, fetched from the backend and shown only to authenticated, verified doctors when online.
 
-The core technical problem MediTag solves: **how do you let anyone verify that Tier 1 data on the tag is authentic and untampered, with zero connectivity, on memory-constrained hardware** — while keeping Tier 2 access properly gated and online-only.
+The core technical problem MediTag solves: **how do you let anyone verify that Tier 1 data on the tag is authentic and untampered, with zero connectivity, on memory-constrained hardware** — while keeping Tier 2 access properly gated to authenticated doctors and put there by the citizen themselves.
 
 ## 2. Why This Might Be Patentable (and the honest caveats)
 
@@ -33,7 +39,26 @@ Python backend  --signs & writes-->  NFC tag  --tap-->  Reader app (verifies off
       |__________________ tier2 fetch (online + authorized) ____|
 ```
 
-## 4. Tech Stack (decided)
+## 3a. Citizen & Doctor App — Information Architecture
+
+**Citizen app (patient's own account):**
+- **Login** — email or phone + password, with forgot-password flow.
+- On successful login, email/phone pairing is checked against existing profiles → **new user** goes to profile creation; **returning user** goes straight to their home tab.
+- Bottom tab bar (three icons, Spotify/Instagram-style):
+  - **Home** — the citizen's own basic offline details (what's currently on their tag) plus other profile info at a glance.
+  - **Create/Update** — where the citizen edits their medical profile over time and uploads extra medical history/documents, which is saved to the cloud (this becomes their Tier 2 record).
+  - **Settings** — account settings.
+
+**Doctor app (clinician account):**
+- **Login** — doctor ID is verified as part of login (exact verification method: open question, see Section 8).
+- Home screen: a large **"Tap to Scan"** button, front and center.
+- On scan: the doctor sees the patient's information in a proper structured form — this is the Tier 2 authorized view.
+
+**How this connects to the existing Tier 1/Tier 2 design:** the anonymous bystander flow (Section 1, surface 1) and its screens in `FRONTEND_DESIGN.md` are unaffected by this — that spec and the in-progress rebuild still stand as-is for the no-login tap flow. The citizen and doctor apps are two additional, separate login-gated surfaces layered on top. **`FRONTEND_DESIGN.md` currently only specs the anonymous reader-flow screens — the citizen and doctor login/profile/scan screens still need their own design pass**, using the same `MT*` component library and token system for visual consistency.
+
+
+
+**Frontend rebuild:** the first UI build wasn't working and is being rebuilt against a dedicated design spec — see [`FRONTEND_DESIGN.md`](./FRONTEND_DESIGN.md) for the full visual language (colour/type/shape tokens, component library, screen-by-screen notes) and rebuild instructions. Adapted from a design system the project owner liked on another project: tinted page, floating white cards, ink-tinted shadows, no borders.
 
 **Reader/writer interface: native/cross-platform app, not a website — confirmed decision.** Reasons: Web NFC (browser NFC access) is unsupported in Safari on iOS/macOS and in any desktop browser, and even on supported Android Chromium browsers it can't issue the low-level chip commands needed for the NTAG213 originality-signature check; a website would also need to load over the internet before it could even attempt to read a tag, undermining the "works fully offline" design goal of Tier 1. A web dashboard is still useful for the *admin/backend* side (issuing tags, managing Tier 2 records, consent, audit logs) — just not for the tap-and-read interaction itself.
 
@@ -42,9 +67,13 @@ Python backend  --signs & writes-->  NFC tag  --tap-->  Reader app (verifies off
 - **Backend:** Python, using **FastAPI**.
   - `cryptography` library for signing/verification.
   - Postgres or SQLite for patient records and the tag registry at this scale.
+  - **Newly required (not yet built):** user accounts + password auth for both citizen and doctor roles, forgot-password/email flow, doctor identity verification, and file/document storage for citizen-uploaded medical history (Tier 2 source data). This is a meaningfully bigger backend than the original two-endpoint design — see Section 8 for what's still undecided here.
 - **Key endpoints (planned):**
   - `POST /tags/issue` — admin generates the Tier 1 payload + signature to write to a new tag.
-  - `GET /tags/{id}/tier2` — returns the full record, gated to authorized/authenticated roles only.
+  - `GET /tags/{id}/tier2` — returns the full record, gated to authenticated doctors only.
+  - `POST /auth/citizen/login`, `POST /auth/citizen/register`, `POST /auth/citizen/forgot-password` — citizen account auth.
+  - `POST /auth/doctor/login` (+ identity verification step, TBD) — doctor account auth.
+  - `PUT /citizen/profile`, `POST /citizen/documents` — citizen profile updates and medical history uploads.
 
 ## 5. Cryptographic Design
 
@@ -77,18 +106,7 @@ With a 64-byte ECDSA (P-256, raw r‖s, not DER) signature and ~4–6 bytes of N
 | NDEF overhead | ~6 bytes |
 | **Total** | **~85 bytes** (of 144 available — ~59 bytes headroom) |
 
-This is provisional at the product level; the v1 bit assignments below are now fixed. The headroom leaves room for a second contact or a short free-text field if needed later.
-
-### 5b. Implemented wire contract (v1)
-
-The unsigned 15-byte value is encoded big-endian as `version (1) | blood enum (1) | allergy mask (2) | condition mask (2) | 10-digit Indian phone in packed BCD (5) | tag ID (4)`. The server signs those 15 bytes with ECDSA P-256/SHA-256, converts the DER result to a fixed 64-byte raw `r || s`, and appends it. The final tag payload is exactly 79 bytes.
-
-Store it in one NDEF record with TNF `unknown` and empty type/identifier. The NDEF message is 82 bytes; its Type 2 TLV encoding including terminator is 86 bytes, leaving 58 bytes of NTAG213 memory unused.
-
-Bit assignments are now fixed for v1:
-
-- Allergies, bits 0–12: penicillin, sulfonamides, aspirin/NSAIDs, contrast dye, latex, peanuts, tree nuts, milk, eggs, shellfish, soy, wheat, insect stings.
-- Conditions, bits 0–10: diabetes, epilepsy, heart disease, hypertension, asthma, COPD, kidney disease, liver disease, anticoagulants, immunocompromised, pregnancy.
+This is provisional — exact bitmask assignments (which allergies/conditions map to which bits) still need to be defined. The headroom leaves room for a second contact or a short free-text field if needed later.
 
 ## 6. Build Priority (core first)
 
@@ -113,9 +131,15 @@ Once that loop is solid, layer in (in rough priority order):
 
 ## 8. Open Questions / Not Yet Decided
 
-- Production authentication/authorization scheme for Tier 2 access (the MVP uses separate admin and clinician bearer tokens; who counts as a verified medical professional still needs a real identity-verification design).
+- Exact bitmask assignments (which specific allergies/conditions map to which bit — the byte layout itself is settled in Section 5a, but the bit-to-meaning mapping isn't).
+- ~~Authentication/authorization scheme for Tier 2 access~~ — resolved 2026-09-14: separate citizen and doctor logins (Section 3a). Still open beneath that:
+  - How doctor identity is actually verified at login (medical registration number lookup? manual admin approval? a third-party API?).
+  - Session/token scheme for both citizen and doctor logins (JWT? session cookies?).
+  - Where/how uploaded medical documents are stored (raw file storage vs. structured fields vs. both) and any size/type limits.
+  - Password reset delivery mechanism (email required at minimum — is phone/SMS reset also needed?).
 - Whether to pursue per-tag unique keys (HKDF-derived) vs a single backend keypair for the MVP.
 - Patent filing timeline — whether/when to file a provisional before any public demo.
+- Citizen and doctor app screens still need a `FRONTEND_DESIGN.md`-style design pass (Section 3a) — not yet started.
 
 ---
 
@@ -135,6 +159,41 @@ Once that loop is solid, layer in (in rough priority order):
 **Remaining / next steps:**
 -
 ```
+
+### 2026-09-14 (three-surface frontend)
+**Done:**
+- Reworked the Flutter entry experience around Citizen, Doctor, and no-login emergency-reader access, matching the three-surface architecture in Section 3a.
+- Added citizen sign-in, forgot-password affordance, profile-pairing preview, and a three-tab Home/Create/Settings experience.
+- Added doctor sign-in with clinician-ID verification affordance and a dedicated Tap to Scan home screen that opens the existing NFC reader flow.
+
+**Decisions made:**
+- Until the planned account APIs exist, citizen profile pairing and clinician verification are explicitly labelled frontend previews rather than represented as real authentication.
+- Anonymous NFC reading remains available from the access portal and retains the offline signed Tier 1 flow.
+
+**Remaining / next steps:**
+- Implement the citizen and doctor authentication, profile-pairing, document-upload, and clinician-verification backend endpoints.
+- Connect citizen Create updates to Tier 2 storage and route successful doctor scans directly into authorized structured Tier 2 records.
+
+### 2026-09-14 (citizen + doctor login architecture)
+**Done:**
+- Confirmed the app has three access surfaces, not one: (1) anonymous bystander tap — no login, offline Tier 1 — unchanged from the existing design/rebuild; (2) citizen login — patient manages their own profile via a 3-tab (Home/Create/Settings) app, uploads medical history to the cloud; (3) doctor login — verified clinician, "Tap to Scan" home screen, sees full structured Tier 2 record on scan.
+- Clarified this explicitly with the project owner because it changes the core architecture — confirmed the anonymous bystander flow is preserved alongside the two new login surfaces, not replaced by them.
+- Documented citizen/doctor information architecture in Section 3a.
+- Expanded backend requirements: citizen + doctor auth, forgot-password, doctor identity verification, document upload for medical history — noted as a meaningfully bigger backend than originally scoped.
+
+**Remaining / next steps:**
+- Citizen and doctor app screens need their own `FRONTEND_DESIGN.md`-style design pass, using the same `MT*` component/token system.
+- Resolve the newly opened backend questions in Section 8 (doctor identity verification method, session/token scheme, document storage approach, password reset delivery).
+- Sequencing: the in-progress reader-flow rebuild (anonymous bystander flow) continues as planned; citizen/doctor login apps are a new, separate build phase on top of it.
+
+### 2026-09-14 (frontend redesign)
+**Done:**
+- First UI build (by codex) was unusable — decided on a full rebuild rather than patching it.
+- Wrote `FRONTEND_DESIGN.md`: complete design spec (colour/type/shape/motion tokens, `MT*` component library, screen-by-screen notes, rebuild instructions), adapted from a design language the project owner liked on another project (periwinkle-tinted page, floating white cards, ink-tinted shadows, no borders).
+
+**Remaining / next steps:**
+- Rebuild the app UI against `FRONTEND_DESIGN.md` — tokens file first, then the `MT*` component library, then screens in the documented order.
+- Log which screens are complete vs. still stubs once the rebuild is underway.
 
 ### 2026-09-12 (app vs. website decision confirmed)
 **Done:**
@@ -170,73 +229,3 @@ Once that loop is solid, layer in (in rough priority order):
 - Implement ECDSA sign (backend) / verify (app) loop.
 - Get basic NFC read/write working in Flutter with `nfc_manager`.
 - Build minimal FastAPI backend with `/tags/issue` endpoint.
-
-### 2026-09-13 (MVP protocol and implementation)
-**Done:**
-- Implemented a FastAPI backend with `POST /tags/issue`, `POST /tags/verify`, `GET /public-key`, and role-gated `GET /tags/{id}/tier2`; SQLite stores the MVP tag registry and Tier 2 demo records.
-- Implemented P-256 signing server-side with a persistent private key excluded from Git; the reader receives only a 65-byte public key at provisioning time.
-- Created the Flutter Android/iOS reader project with NDEF scan support, Tier 1 binary decoding, and offline P-256 verification.
-- Added automated tests for payload decode, tamper rejection, and a real Python-issued payload verifying in Flutter. Flutter analysis reports no issues.
-- Defined and implemented v1 allergy/condition bit assignments, 10-digit Indian packed-BCD phone format, and the one-record NDEF wire format (Section 5b).
-
-**Decisions made:**
-- Retain fixed 64-byte raw `r || s` signatures on the tag. The Flutter reader verifies with a pure-Dart P-256 implementation so Android and iOS use the same signature representation; Android's system verifier expects DER while iOS accepts raw signatures.
-- MVP Tier 2 gating uses distinct admin and clinician tokens only. It demonstrates enforcement but is not a production medical-identity solution.
-
-**Remaining / next steps:**
-- Provision the generated public key into the reader, issue a test record, and write/read it on a physical NTAG213.
-- Add an admin issue/write screen (or a controlled writer flow) to write the returned payload as the specified NDEF record.
-- Replace demo-token Tier 2 access with a decided clinician authentication and consent model.
-- Add the NTAG213 originality-signature check as the next security stretch goal.
-
-### 2026-09-13 (frontend-first product flow)
-**Done:**
-- Replaced the single-purpose reader screen with a complete clickable Flutter frontend for both patient and doctor journeys.
-- Added role selection/login UI; patient screens for home, medical ID, health profile, emergency contacts, and privacy; doctor screens for clinician status, NFC scanning, patient lookup, and access-audit/profile states.
-- Kept the real NFC scan and offline signature verification hook inside the doctor Scan tab; it becomes live once the issuer public key is provisioned.
-- Marked product functions that still need backend connection (registration, credential verification, profile edits, consent, Tier 2 request, audit history, tag issuing) rather than pretending they are already secure/live.
-- Ran Flutter analysis and tests successfully.
-
-**Decisions made:**
-- Build the frontend first to make all user journeys and feature scope visible, then connect each screen to the already-started backend in vertical slices.
-
-**Remaining / next steps:**
-- Review the screen flows and refine the patient/doctor feature list before implementing the real login and registration API.
-- Build the clinician tag-issue/write screen next, then connect patient profile editing and Tier 2 consent/access flows.
-
-### 2026-09-13 (frontend navigation and visual system)
-**Done:**
-- Changed the Patient dashboard's “View medical ID” and “Emergency contacts” actions from instructional messages to direct navigation to the My ID and Health tabs.
-- Reworked the shared visual system from red/white to white, light blue, and soft pastel accents; blue is now the primary brand/action color.
-- Reserved rose/red visual treatment for allergy warnings, while conditions, medication, contacts, and status use distinct calm accent colors.
-- Flutter analysis and tests pass after the UI update.
-
-**Decisions made:**
-- Use red only where it communicates clinical caution (especially allergies), not as the app-wide brand color.
-
-### 2026-09-13 (patient home and health consolidation)
-**Done:**
-- Merged the patient Health content into the Home dashboard and removed the separate Health navigation tab.
-- Home now contains tag status, medical-profile summaries and edit affordances, emergency contacts, tag-data privacy explanation, and safety guidance.
-- Added an emergency-contact bottom sheet with primary/secondary contact preview.
-- Flutter analysis and tests pass after the navigation consolidation.
-
-**Decisions made:**
-- Patient Home is the single health overview; My ID remains a dedicated emergency-card view and Profile remains account/privacy focused.
-
-### 2026-09-13 (session handoff)
-**Done:**
-- MVP backend, signed Tier 1 protocol, Flutter NFC verification core, and the frontend-first patient/doctor app flow are in the workspace.
-- Patient Home and Health are consolidated; its navigation is now Home, My ID, and Profile.
-- The Flutter project has passed analysis and protocol/interoperability tests after the latest UI changes.
-
-**Current state / important notes:**
-- Patient and doctor login screens are frontend prototypes only; they do not yet authenticate a real account.
-- Patient data currently shown in the UI is demo content. Profile editing, registration, clinician credential verification, consent, Tier 2 retrieval, audit history, and tag issuing are represented in the UI but are not connected end-to-end.
-- The Doctor Scan tab contains the real offline verification hook. It needs the backend's provisioned public key and a physical NDEF-written NTAG213 to test scanning.
-
-**Recommended next-session order:**
-- Review the frontend on the Android emulator/phone and make any final UX changes.
-- Implement real patient registration/login and clinician login/verification, starting with a secure backend auth model.
-- Connect patient health-profile edits to the backend and regenerate a signed Tier 1 payload when on-tag fields change.
-- Build the clinician tag-issue/write workflow, then test the complete issue → write → scan → verify loop on real NTAG213 hardware.

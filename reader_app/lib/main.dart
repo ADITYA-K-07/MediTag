@@ -1,540 +1,539 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import 'nfc_reader.dart';
-import 'tag_verifier.dart';
+import 'reader_controller.dart';
+import 'services/tag_scan_service.dart';
+import 'services/tier2_repository.dart';
+import 'theme/tokens.dart';
+import 'widgets/mt_components.dart';
 
-void main() => runApp(const MediTagApp());
+const _issuerPublicKey = String.fromEnvironment('MEDITAG_PUBLIC_KEY');
 
-const _brand = Color(0xFF2563EB);
-const _brandDark = Color(0xFF1D4ED8);
-const _brandSoft = Color(0xFFEAF3FF);
-const _allergy = Color(0xFFCC3D58);
-const _ink = Color(0xFF1F2937);
+void main() {
+  final config = ApiConfig.fromEnvironment();
+  runApp(MediTagApp(
+    controller: ReaderController(
+      scanner: NfcTagScanService(publicKeyBase64: _issuerPublicKey),
+      tier2Repository: Tier2Repository(config),
+    ),
+    publicKeyBase64: _issuerPublicKey,
+  ));
+}
 
-class MediTagApp extends StatelessWidget {
-  const MediTagApp({super.key});
+enum AppSurface { portal, reader, citizen, doctor }
+
+class MediTagApp extends StatefulWidget {
+  const MediTagApp({super.key, required this.controller, this.publicKeyBase64 = '', this.initialSurface = AppSurface.portal});
+  final ReaderController controller;
+  final String publicKeyBase64;
+  final AppSurface initialSurface;
+
+  @override
+  State<MediTagApp> createState() => _MediTagAppState();
+}
+
+class _MediTagAppState extends State<MediTagApp> {
+  late AppSurface _surface = widget.initialSurface;
+
+  void _openDoctorScanner() {
+    widget.controller.reset();
+    setState(() => _surface = AppSurface.reader);
+    widget.controller.scan();
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'MediTag',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: _brand, brightness: Brightness.light),
-          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-          useMaterial3: true,
-          inputDecorationTheme: const InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14)), borderSide: BorderSide(color: Color(0xFFE5E7EB))),
-          ),
-        ),
-        home: const LoginPage(),
+        theme: MTTokens.theme(),
+        home: switch (_surface) {
+          AppSurface.portal => _AccessPortal(onSelect: (surface) => setState(() => _surface = surface)),
+          AppSurface.reader => ReaderFlow(controller: widget.controller, publicKeyBase64: widget.publicKeyBase64, onExit: () => setState(() => _surface = AppSurface.portal)),
+          AppSurface.citizen => _CitizenLogin(onExit: () => setState(() => _surface = AppSurface.portal)),
+          AppSurface.doctor => _DoctorLogin(onExit: () => setState(() => _surface = AppSurface.portal), onScan: _openDoctorScanner),
+        },
       );
 }
 
-enum AppRole { patient, doctor }
-
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class ReaderFlow extends StatelessWidget {
+  const ReaderFlow({super.key, required this.controller, required this.publicKeyBase64, this.onExit});
+  final ReaderController controller;
+  final String publicKeyBase64;
+  final VoidCallback? onExit;
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) => Scaffold(
+          body: SafeArea(
+            child: switch (controller.view) {
+              ReaderView.home => _HomeScreen(controller: controller, onExit: onExit),
+              ReaderView.scanning => _ScanningScreen(controller: controller),
+              ReaderView.verified => _VerifiedScreen(controller: controller),
+              ReaderView.invalid => _InvalidScreen(controller: controller),
+              ReaderView.tier2Loading => const _Tier2LoadingScreen(),
+              ReaderView.tier2Locked => _Tier2LockedScreen(controller: controller),
+              ReaderView.tier2Record => _Tier2RecordScreen(controller: controller),
+              ReaderView.issueTag => _IssueTagScreen(controller: controller),
+              ReaderView.settings => _SettingsScreen(controller: controller, publicKeyBase64: publicKeyBase64),
+            },
+          ),
+        ),
+      );
 }
 
-class _LoginPageState extends State<LoginPage> {
-  AppRole _role = AppRole.patient;
-  bool _hidePassword = true;
-
-  void _continueToDashboard() {
-    final destination = _role == AppRole.patient ? const PatientShell() : const DoctorShell();
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => destination));
-  }
-
+class _Page extends StatelessWidget {
+  const _Page({required this.child, this.onBack, this.settings});
+  final Widget child;
+  final VoidCallback? onBack;
+  final VoidCallback? settings;
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
           child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _BrandMark(),
-                    const SizedBox(height: 40),
-                    const Text('Welcome to MediTag', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _ink)),
-                    const SizedBox(height: 8),
-                    Text(_role == AppRole.patient ? 'Your medical ID, ready when it matters.' : 'Secure access for verified medical professionals.', style: const TextStyle(color: Color(0xFF6B7280), fontSize: 16)),
-                    const SizedBox(height: 28),
-                    SegmentedButton<AppRole>(
-                      segments: const [
-                        ButtonSegment(value: AppRole.patient, icon: Icon(Icons.person_outline), label: Text('Patient')),
-                        ButtonSegment(value: AppRole.doctor, icon: Icon(Icons.medical_services_outlined), label: Text('Doctor')),
-                      ],
-                      selected: {_role},
-                      onSelectionChanged: (value) => setState(() => _role = value.first),
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email address', prefixIcon: Icon(Icons.mail_outline))),
-                    const SizedBox(height: 14),
-                    TextField(
-                      obscureText: _hidePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(icon: Icon(_hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined), onPressed: () => setState(() => _hidePassword = !_hidePassword)),
-                      ),
-                    ),
-                    Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => _notice(context, 'Password recovery will be connected to the secure account service.'), child: const Text('Forgot password?'))),
-                    const SizedBox(height: 6),
-                    FilledButton(onPressed: _continueToDashboard, style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)), child: Text('Continue as ${_role == AppRole.patient ? 'Patient' : 'Doctor'}')),
-                    const SizedBox(height: 18),
-                    Center(child: TextButton(onPressed: () => _notice(context, 'Patient registration is the next account feature to connect.'), child: const Text('New to MediTag? Create an account'))),
-                    const SizedBox(height: 20),
-                    const _PrivacyNote(),
-                  ],
-                ),
-              ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth > 640 ? 600 : double.infinity),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (onBack != null || settings != null)
+                  Row(children: [
+                    if (onBack != null) MTIconButton(icon: PhosphorIconsRegular.arrowLeft, label: 'Back', onPressed: onBack),
+                    const Spacer(),
+                    if (settings != null) MTIconButton(icon: PhosphorIconsRegular.gear, label: 'Settings', onPressed: settings),
+                  ]),
+                if (onBack != null || settings != null) const SizedBox(height: 22),
+                child,
+              ]),
             ),
           ),
         ),
       );
 }
 
-class PatientShell extends StatefulWidget {
-  const PatientShell({super.key});
-
-  @override
-  State<PatientShell> createState() => _PatientShellState();
-}
-
-class _PatientShellState extends State<PatientShell> {
-  int _tab = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final pages = [
-      PatientHome(
-        onViewMedicalId: () => setState(() => _tab = 1),
-      ),
-      const MedicalIdPage(),
-      const PatientProfilePage(),
-    ];
-    return _Shell(
-      currentIndex: _tab,
-      onDestinationSelected: (index) => setState(() => _tab = index),
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'My ID'),
-        NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
-      ],
-      child: pages[_tab],
-    );
-  }
-}
-
-class DoctorShell extends StatefulWidget {
-  const DoctorShell({super.key});
-
-  @override
-  State<DoctorShell> createState() => _DoctorShellState();
-}
-
-class _DoctorShellState extends State<DoctorShell> {
-  int _tab = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    const pages = [DoctorHome(), ScanTagPage(), PatientLookupPage(), DoctorProfilePage()];
-    return _Shell(
-      currentIndex: _tab,
-      onDestinationSelected: (index) => setState(() => _tab = index),
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.nfc), label: 'Scan'),
-        NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Patients'),
-        NavigationDestination(icon: Icon(Icons.account_circle_outlined), selectedIcon: Icon(Icons.account_circle), label: 'Profile'),
-      ],
-      child: pages[_tab],
-    );
-  }
-}
-
-class _Shell extends StatelessWidget {
-  const _Shell({required this.child, required this.currentIndex, required this.onDestinationSelected, required this.destinations});
-  final Widget child;
-  final int currentIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final List<NavigationDestination> destinations;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(child: child),
-        bottomNavigationBar: NavigationBar(selectedIndex: currentIndex, onDestinationSelected: onDestinationSelected, destinations: destinations),
-      );
-}
-
-class PatientHome extends StatelessWidget {
-  const PatientHome({super.key, required this.onViewMedicalId});
-  final VoidCallback onViewMedicalId;
-
+class _HomeScreen extends StatelessWidget {
+  const _HomeScreen({required this.controller, this.onExit});
+  final ReaderController controller;
+  final VoidCallback? onExit;
   @override
   Widget build(BuildContext context) => _Page(
-        title: 'Hello, Aanya',
-        subtitle: 'Your emergency medical information is up to date.',
-        children: [
-          const _StatusCard(icon: Icons.verified_user_outlined, title: 'MediTag is protected', subtitle: 'Your emergency profile is signed and ready for offline verification.', color: Color(0xFF087F5B)),
-          const SizedBox(height: 24),
-          const Text('Quick actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _ActionTile(icon: Icons.badge_outlined, label: 'View medical ID', onTap: onViewMedicalId)),
-            const SizedBox(width: 12),
-            Expanded(child: _ActionTile(icon: Icons.contact_phone_outlined, label: 'Emergency contacts', onTap: () => _showEmergencyContacts(context))),
-          ]),
-          const SizedBox(height: 26),
-          const Text('Your tag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          const _InfoCard(title: 'MediTag #1001', subtitle: 'Last profile update: today', leading: Icon(Icons.nfc, color: _brand), trailing: Chip(label: Text('Active'))),
-          const SizedBox(height: 26),
-          const Text('Health profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          _EditableCard(icon: Icons.warning_amber_outlined, title: 'Allergies', value: 'Penicillin, Latex', color: _allergy),
-          _EditableCard(icon: Icons.favorite_outline, title: 'Critical conditions', value: 'Diabetes', color: const Color(0xFF8B5CF6)),
-          _EditableCard(icon: Icons.medication_outlined, title: 'Medications', value: 'Add medications for clinician access', color: const Color(0xFF0F766E)),
-          _EditableCard(icon: Icons.contact_phone_outlined, title: 'Emergency contacts', value: 'Rohan Sharma · +91 98765 43210', color: _brand),
-          const SizedBox(height: 12),
-          const _StatusCard(icon: Icons.info_outline, title: 'What is stored on your tag?', subtitle: 'Blood type, selected allergies/conditions, one contact number and a signed tag ID. Detailed records remain private online.', color: Color(0xFF1D4ED8)),
-          const SizedBox(height: 26),
-          const Text('How MediTag helps', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          const _FeatureRow(icon: Icons.wifi_off_outlined, title: 'Works offline', subtitle: 'Critical information can be verified without internet.'),
-          const _FeatureRow(icon: Icons.lock_outline, title: 'Private full record', subtitle: 'Detailed records stay gated to authorized clinicians.'),
-        ],
-      );
-}
-
-class MedicalIdPage extends StatelessWidget {
-  const MedicalIdPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => _Page(
-        title: 'My medical ID',
-        subtitle: 'This is what an emergency responder sees after a verified scan.',
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: _brandDark, borderRadius: BorderRadius.circular(24)),
-            child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Icon(Icons.verified, color: Colors.white), SizedBox(width: 8), Text('VERIFIED OFFLINE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
-              SizedBox(height: 24), Text('Aanya Sharma', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
-              SizedBox(height: 16), Text('Blood type', style: TextStyle(color: Color(0xFFDBEAFE))), Text('O−', style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
-              SizedBox(height: 16), Text('Emergency contact', style: TextStyle(color: Color(0xFFDBEAFE))), Text('+91 98765 43210', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+        onBack: onExit,
+        settings: () => controller.show(ReaderView.settings),
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height - 125,
+          child: MTEmptyState(
+            icon: PhosphorIconsRegular.contactlessPayment,
+            title: 'Tap a MediTag to read it',
+            message: controller.scanMessage ?? 'Hold your phone near a MediTag. Critical information is verified on this device, even offline.',
+            action: Column(children: [
+              MTButton(label: 'Start scan', icon: PhosphorIconsRegular.contactlessPayment, onPressed: controller.scan),
+              const SizedBox(height: 10),
+              MTButton(label: 'Issue a tag', icon: PhosphorIconsRegular.plus, variant: MTButtonVariant.text, onPressed: () => controller.show(ReaderView.issueTag)),
             ]),
           ),
-          const SizedBox(height: 24),
-          const _InfoCard(title: 'Allergies', subtitle: 'Penicillin, Latex', leading: Icon(Icons.warning_amber_rounded, color: _allergy)),
-          const SizedBox(height: 12),
-          const _InfoCard(title: 'Critical conditions', subtitle: 'Diabetes', leading: Icon(Icons.monitor_heart_outlined, color: _brand)),
-          const SizedBox(height: 24),
-          OutlinedButton.icon(onPressed: () => _notice(context, 'A shareable emergency-card image can be added after profile syncing.'), icon: const Icon(Icons.share_outlined), label: const Text('Share emergency card')),
-        ],
-      );
-}
-
-class PatientProfilePage extends StatelessWidget {
-  const PatientProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) => _Page(
-        title: 'Profile & privacy',
-        subtitle: 'Manage your account and data-sharing preferences.',
-        children: [
-          const _InfoCard(title: 'Aanya Sharma', subtitle: 'aanya@example.com', leading: CircleAvatar(backgroundColor: Color(0xFFDBEAFE), child: Text('AS', style: TextStyle(color: _brand, fontWeight: FontWeight.bold)))),
-          const SizedBox(height: 20),
-          _MenuRow(icon: Icons.security_outlined, label: 'Privacy & consent', onTap: () => _notice(context, 'Consent controls will decide which clinicians can request Tier 2 records.')),
-          _MenuRow(icon: Icons.history_outlined, label: 'Access history', onTap: () => _notice(context, 'This screen will list authorized Tier 2 record access events.')),
-          _MenuRow(icon: Icons.help_outline, label: 'Help & support', onTap: () => _notice(context, 'Help centre coming in the next frontend pass.')),
-          _MenuRow(icon: Icons.logout, label: 'Sign out', destructive: true, onTap: () => Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false)),
-        ],
-      );
-}
-
-class DoctorHome extends StatelessWidget {
-  const DoctorHome({super.key});
-
-  @override
-  Widget build(BuildContext context) => _Page(
-        title: 'Good morning, Dr. Mehta',
-        subtitle: 'Verified clinician workspace',
-        children: [
-          const _StatusCard(icon: Icons.verified_outlined, title: 'Clinician access verified', subtitle: 'You can scan a MediTag and request its detailed record when online.', color: Color(0xFF087F5B)),
-          const SizedBox(height: 24),
-          const Text('Clinical tools', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          _ActionTile(icon: Icons.nfc, label: 'Scan emergency tag', onTap: () => _notice(context, 'Open the Scan tab and hold the device near an NTAG213.')),
-          const SizedBox(height: 12),
-          _ActionTile(icon: Icons.add_card_outlined, label: 'Issue a new MediTag', onTap: () => _notice(context, 'The issuing form is the next UI screen; the backend endpoint is already ready.')),
-          const SizedBox(height: 26),
-          const Text('Safety workflow', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          const _FeatureRow(icon: Icons.nfc, title: '1. Scan', subtitle: 'Read the signed emergency payload from the NFC tag.'),
-          const _FeatureRow(icon: Icons.verified_user_outlined, title: '2. Verify offline', subtitle: 'The app confirms that the data has not been altered.'),
-          const _FeatureRow(icon: Icons.lock_open_outlined, title: '3. Request Tier 2', subtitle: 'Detailed records require authenticated, online authorization.'),
-        ],
-      );
-}
-
-class ScanTagPage extends StatefulWidget {
-  const ScanTagPage({super.key});
-
-  @override
-  State<ScanTagPage> createState() => _ScanTagPageState();
-}
-
-class _ScanTagPageState extends State<ScanTagPage> {
-  final _reader = NfcReader();
-  bool _scanning = false;
-  VerificationResult? _result;
-  String? _message;
-
-  // Provision this once from GET /public-key. It is deliberately local so a
-  // scan never downloads a key or needs a connection to verify Tier 1.
-  static const _provisionedPublicKey = '';
-
-  Future<void> _scan() async {
-    if (_provisionedPublicKey.isEmpty) {
-      setState(() => _message = 'This demo build needs the issuer public key before it can verify real tags. See reader_app/README.md.');
-      return;
-    }
-    setState(() { _scanning = true; _result = null; _message = 'Hold the phone near the MediTag...'; });
-    try {
-      final key = TagVerifier.publicKeyFromUncompressed(Uint8List.fromList(base64Decode(_provisionedPublicKey)));
-      final result = await TagVerifier(key).verify(await _reader.scanOne());
-      if (mounted) setState(() { _result = result; _message = null; });
-    } catch (error) {
-      if (mounted) setState(() => _message = error.toString().replaceFirst('Bad state: ', ''));
-    } finally {
-      if (mounted) setState(() => _scanning = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => _Page(
-        title: 'Scan MediTag',
-        subtitle: 'Tier 1 data is verified locally before it is shown.',
-        children: [
-          Container(
-            height: 190,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: _brandSoft, borderRadius: BorderRadius.circular(28)),
-            child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.nfc, size: 72, color: _brand), SizedBox(height: 12), Text('Hold a tag near this device', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17))]),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(onPressed: _scanning ? null : _scan, style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)), icon: const Icon(Icons.nfc), label: Text(_scanning ? 'Scanning...' : 'Start scan')),
-          const SizedBox(height: 18),
-          if (_message != null) _StatusCard(icon: Icons.info_outline, title: 'Scan status', subtitle: _message!, color: const Color(0xFF1D4ED8)),
-          if (_result != null) _ScanResult(result: _result!),
-          const SizedBox(height: 20),
-          const _FeatureRow(icon: Icons.wifi_off_outlined, title: 'Offline by design', subtitle: 'A valid signature means emergency data can be trusted without internet.'),
-        ],
-      );
-}
-
-class PatientLookupPage extends StatelessWidget {
-  const PatientLookupPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => _Page(
-        title: 'Patient records',
-        subtitle: 'Search is available only after verified clinician sign-in.',
-        children: [
-          const TextField(decoration: InputDecoration(hintText: 'Search patient name or tag ID', prefixIcon: Icon(Icons.search))),
-          const SizedBox(height: 24),
-          const _StatusCard(icon: Icons.lock_outline, title: 'Consent-protected access', subtitle: 'This list will contain only records you are permitted to access. Emergency Tier 1 data remains available through NFC scan.', color: Color(0xFF1D4ED8)),
-          const SizedBox(height: 24),
-          const Text('Recent verified scans', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          const _InfoCard(title: 'No verified scans yet', subtitle: 'Scan a MediTag to begin an emergency-record workflow.', leading: Icon(Icons.nfc)),
-        ],
-      );
-}
-
-class DoctorProfilePage extends StatelessWidget {
-  const DoctorProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) => _Page(
-        title: 'Clinician profile',
-        subtitle: 'Your identity and access status.',
-        children: [
-          const _InfoCard(title: 'Dr. Arjun Mehta', subtitle: 'Emergency Medicine · Verified clinician', leading: CircleAvatar(backgroundColor: Color(0xFFDCEAFE), child: Icon(Icons.medical_services, color: Color(0xFF1D4ED8))), trailing: Icon(Icons.verified, color: Color(0xFF087F5B))),
-          const SizedBox(height: 20),
-          _MenuRow(icon: Icons.badge_outlined, label: 'Professional verification', onTap: () => _notice(context, 'Credential verification will be connected to the production identity provider.')),
-          _MenuRow(icon: Icons.history_outlined, label: 'Access audit trail', onTap: () => _notice(context, 'Every Tier 2 access event will be shown here.')),
-          _MenuRow(icon: Icons.logout, label: 'Sign out', destructive: true, onTap: () => Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false)),
-        ],
-      );
-}
-
-class _ScanResult extends StatelessWidget {
-  const _ScanResult({required this.result});
-  final VerificationResult result;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!result.isVerified) return _StatusCard(icon: Icons.error_outline, title: 'Untrusted tag', subtitle: result.error ?? 'Signature verification failed.', color: const Color(0xFFB42318));
-    final data = result.payload!;
-    return Card(
-      color: const Color(0xFFECFDF3),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [Icon(Icons.verified, color: Color(0xFF087F5B)), SizedBox(width: 8), Text('VERIFIED OFFLINE', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF087F5B)))]),
-          const Divider(height: 28),
-          _dataRow('Blood type', data.bloodTypeName),
-          _dataRow('Allergies', data.allergies.isEmpty ? 'None recorded' : data.allergies.join(', ')),
-          _dataRow('Critical conditions', data.conditions.isEmpty ? 'None recorded' : data.conditions.join(', ')),
-          _dataRow('Emergency contact', '+91 ${data.emergencyPhone}'),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(onPressed: () => _notice(context, 'Tier 2 will request online, consent-aware access to this patient record.'), icon: const Icon(Icons.lock_open_outlined), label: const Text('Request full record (Tier 2)')),
-        ]),
-      ),
-    );
-  }
-
-  Widget _dataRow(String label, String value) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Text('$label\n$value', style: const TextStyle(fontSize: 16)));
-}
-
-class _Page extends StatelessWidget {
-  const _Page({required this.title, required this.subtitle, required this.children});
-  final String title;
-  final String subtitle;
-  final List<Widget> children;
-  @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 30),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _ink)),
-          const SizedBox(height: 6),
-          Text(subtitle, style: const TextStyle(fontSize: 15, color: Color(0xFF6B7280))),
-          const SizedBox(height: 26),
-          ...children,
-        ]),
-      );
-}
-
-class _BrandMark extends StatelessWidget {
-  const _BrandMark();
-  @override
-  Widget build(BuildContext context) => const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        CircleAvatar(radius: 23, backgroundColor: _brand, child: Icon(Icons.favorite, color: Colors.white)),
-        SizedBox(width: 10),
-        Text('MediTag', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: _ink)),
-      ]);
-}
-
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({required this.icon, required this.title, required this.subtitle, required this.color});
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.09), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withValues(alpha: 0.22))),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: color)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(height: 1.35))]))]),
-      );
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.title, required this.subtitle, required this.leading, this.trailing});
-  final String title;
-  final String subtitle;
-  final Widget leading;
-  final Widget? trailing;
-  @override
-  Widget build(BuildContext context) => Card(child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7), leading: leading, title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(subtitle), trailing: trailing));
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFDCEAFE))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: _brand), const SizedBox(height: 12), Text(label, style: const TextStyle(fontWeight: FontWeight.w700))]),
         ),
       );
 }
 
-class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({required this.icon, required this.title, required this.subtitle});
-  final IconData icon;
-  final String title;
-  final String subtitle;
+class _ScanningScreen extends StatelessWidget {
+  const _ScanningScreen({required this.controller});
+  final ReaderController controller;
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [CircleAvatar(radius: 19, backgroundColor: _brandSoft, child: Icon(icon, color: _brand, size: 20)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 2), Text(subtitle, style: const TextStyle(color: Color(0xFF6B7280), height: 1.3))]))]),
+  Widget build(BuildContext context) => _Page(
+        onBack: controller.reset,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height - 125,
+          child: MTEnter(
+            index: 0,
+            child: MTEmptyState(
+              icon: PhosphorIconsRegular.contactlessPayment,
+              title: 'Scanning for MediTag',
+              message: 'Keep the tag close to the back of this device. We will verify its signature before showing any data.',
+              action: const MTEmptyNote(icon: PhosphorIconsRegular.wifiSlash, message: 'Verification happens locally and does not need a network connection.'),
+            ),
+          ),
+        ),
       );
 }
 
-class _EditableCard extends StatelessWidget {
-  const _EditableCard({required this.icon, required this.title, required this.value, required this.color});
+class _VerifiedScreen extends StatelessWidget {
+  const _VerifiedScreen({required this.controller});
+  final ReaderController controller;
+  @override
+  Widget build(BuildContext context) {
+    final payload = controller.verification!.payload!;
+    final tiles = <Widget>[
+      ...payload.allergies.map((value) => MTTintTile(tint: MTTint.amber, icon: PhosphorIconsRegular.warning, label: _readable(value))),
+      ...payload.conditions.map((value) => MTTintTile(tint: MTTint.orchid, icon: PhosphorIconsRegular.heartbeat, label: _readable(value))),
+    ];
+    return _Page(
+      onBack: controller.reset,
+      settings: () => controller.show(ReaderView.settings),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const MTPageHeading(title: 'Emergency profile', subtitle: 'Tier 1 information is available immediately.'),
+        const SizedBox(height: 22),
+        const MTVerificationBanner(state: MTVerificationState.verified),
+        const SizedBox(height: 16),
+        MTStatTile(label: 'Blood type', value: payload.bloodTypeName, icon: PhosphorIconsRegular.drop),
+        const SizedBox(height: 26),
+        const MTSectionHeader(title: 'Allergies & conditions'),
+        const SizedBox(height: 12),
+        if (tiles.isEmpty)
+          const MTEmptyNote(icon: PhosphorIconsRegular.checkCircle, message: 'No allergies or critical conditions are recorded on this tag.')
+        else
+          Wrap(spacing: 8, runSpacing: 8, children: [for (var index = 0; index < tiles.length; index++) MTEnter(index: index, child: tiles[index])]),
+        const SizedBox(height: 24),
+        MTCard(
+          onTap: () => _call(context, payload.emergencyPhone),
+          semanticLabel: 'Call emergency contact at +91 ${payload.emergencyPhone}',
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const MTCardHeader(title: 'Emergency contact', subtitle: 'Tap to call'),
+            const SizedBox(height: 14),
+            Row(children: [
+              DecoratedBox(decoration: const BoxDecoration(color: MTTokens.mintWash, shape: BoxShape.circle), child: Padding(padding: const EdgeInsets.all(10), child: PhosphorIcon(PhosphorIconsRegular.phone, color: MTTokens.mint))),
+              const SizedBox(width: 12),
+              Text('+91 ${payload.emergencyPhone}', style: MTTokens.headlineMd),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        MTCard(variant: MTCardVariant.flat, child: Row(children: [PhosphorIcon(PhosphorIconsRegular.identificationCard, color: MTTokens.inkMuted), const SizedBox(width: 10), const Text('Tag ID', style: TextStyle(color: MTTokens.inkMuted)), const Spacer(), MTTag(label: '#${payload.tagId}')])) ,
+        const SizedBox(height: 24),
+        MTTierLockCard(reason: 'A fuller medical record may be available to authorized clinicians when online.', onRetry: controller.requestTier2),
+      ]),
+    );
+  }
+}
+
+class _InvalidScreen extends StatelessWidget {
+  const _InvalidScreen({required this.controller});
+  final ReaderController controller;
+  @override
+  Widget build(BuildContext context) => _Page(
+        onBack: controller.reset,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const MTPageHeading(title: 'Tag cannot be trusted', subtitle: 'Do not act on the data stored on this tag.'),
+          const SizedBox(height: 22),
+          MTVerificationBanner(state: MTVerificationState.invalid, detail: controller.verification?.error),
+          const SizedBox(height: 20),
+          const MTEmptyNote(icon: PhosphorIconsRegular.info, message: "This tag's data doesn't match its signature — it may have been altered. Use established emergency procedures instead."),
+          const SizedBox(height: 24),
+          MTButton(label: 'Scan another tag', icon: PhosphorIconsRegular.arrowClockwise, onPressed: controller.scan),
+        ]),
+      );
+}
+
+class _Tier2LoadingScreen extends StatelessWidget {
+  const _Tier2LoadingScreen();
+  @override
+  Widget build(BuildContext context) => const _Page(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          MTPageHeading(title: 'Loading full record', subtitle: 'Checking authorized online access.'),
+          SizedBox(height: 24), MTSkeleton(height: 118), SizedBox(height: 12), MTSkeleton(height: 156), SizedBox(height: 12), MTSkeleton(height: 104),
+        ]),
+      );
+}
+
+class _Tier2LockedScreen extends StatelessWidget {
+  const _Tier2LockedScreen({required this.controller});
+  final ReaderController controller;
+  @override
+  Widget build(BuildContext context) {
+    final lock = controller.tier2 as Tier2Locked;
+    final offline = lock.reason == Tier2LockReason.offline;
+    return _Page(
+      onBack: () => controller.show(ReaderView.verified),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const MTPageHeading(title: 'Full record', subtitle: 'Tier 2 is separate from the verified emergency profile.'),
+        const SizedBox(height: 24),
+        MTTierLockCard(reason: offline ? 'No connection or clinician configuration is available. The verified offline emergency profile is still available.' : 'Your current account is not authorized to view this patient’s full record.', onRetry: offline ? controller.requestTier2 : null),
+        const SizedBox(height: 20),
+        MTButton(label: 'Back to emergency profile', icon: PhosphorIconsRegular.arrowLeft, variant: MTButtonVariant.secondary, onPressed: () => controller.show(ReaderView.verified)),
+      ]),
+    );
+  }
+}
+
+class _Tier2RecordScreen extends StatelessWidget {
+  const _Tier2RecordScreen({required this.controller});
+  final ReaderController controller;
+  @override
+  Widget build(BuildContext context) {
+    final record = (controller.tier2 as Tier2Record).values;
+    final entries = record.entries.toList();
+    return _Page(
+      onBack: () => controller.show(ReaderView.verified),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const MTPageHeading(title: 'Full medical record', subtitle: 'Authorized Tier 2 access'),
+        const SizedBox(height: 18),
+        const MTBadge(label: 'Authorized online record', tone: MTBadgeTone.success, icon: PhosphorIconsRegular.shieldCheck),
+        const SizedBox(height: 20),
+        if (entries.isEmpty)
+          const MTEmptyNote(icon: PhosphorIconsRegular.fileText, message: 'No additional medical record has been added yet.')
+        else
+          ...entries.map((entry) => Padding(padding: const EdgeInsets.only(bottom: 12), child: MTCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [MTCardHeader(title: _readable(entry.key)), const SizedBox(height: 10), Text(_recordValue(entry.value), style: const TextStyle(color: MTTokens.inkMuted, height: 1.45))])))),
+      ]),
+    );
+  }
+}
+
+class _IssueTagScreen extends StatefulWidget {
+  const _IssueTagScreen({required this.controller});
+  final ReaderController controller;
+  @override
+  State<_IssueTagScreen> createState() => _IssueTagScreenState();
+}
+
+class _IssueTagScreenState extends State<_IssueTagScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _tagId = TextEditingController();
+  final _phone = TextEditingController();
+  String _bloodType = 'O+';
+  bool _valid = false;
+  @override
+  void dispose() { _tagId.dispose(); _phone.dispose(); super.dispose(); }
+  void _validate() => setState(() => _valid = _formKey.currentState?.validate() ?? false);
+  Future<void> _confirm() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    await MTModal.show<void>(context: context, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Confirm tag write', style: MTTokens.headlineLg), const SizedBox(height: 10),
+      const Text('Writing replaces any existing data on a tag. This rebuilt reader demonstrates the confirmation flow only; it will not write to NFC hardware.', style: TextStyle(color: MTTokens.inkMuted, height: 1.45)), const SizedBox(height: 22),
+      MTButton(label: 'I understand', icon: PhosphorIconsRegular.check, onPressed: () => Navigator.of(context).pop()), const SizedBox(height: 8), MTButton(label: 'Cancel', variant: MTButtonVariant.text, onPressed: () => Navigator.of(context).pop()),
+    ]));
+  }
+  @override
+  Widget build(BuildContext context) => _Page(
+        onBack: widget.controller.reset,
+        child: Form(key: _formKey, onChanged: _validate, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const MTPageHeading(title: 'Issue a MediTag', subtitle: 'Prepare a signed emergency profile for a blank tag.'), const SizedBox(height: 24),
+          MTCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const MTCardHeader(title: 'Emergency information', subtitle: 'Only this compact, signed data belongs on the tag.'), const SizedBox(height: 20),
+            MTTextField(label: 'Tag ID', controller: _tagId, keyboardType: TextInputType.number, hint: 'e.g. 1001', validator: (value) => (value == null || int.tryParse(value) == null) ? 'Enter a numeric tag ID.' : null), const SizedBox(height: 16),
+            MTSelect<String>(label: 'Blood type', value: _bloodType, items: const [DropdownMenuItem(value: 'A+', child: Text('A+')), DropdownMenuItem(value: 'A-', child: Text('A-')), DropdownMenuItem(value: 'B+', child: Text('B+')), DropdownMenuItem(value: 'B-', child: Text('B-')), DropdownMenuItem(value: 'AB+', child: Text('AB+')), DropdownMenuItem(value: 'AB-', child: Text('AB-')), DropdownMenuItem(value: 'O+', child: Text('O+')), DropdownMenuItem(value: 'O-', child: Text('O-'))], onChanged: (value) => setState(() => _bloodType = value ?? _bloodType)), const SizedBox(height: 16),
+            MTTextField(label: 'Emergency phone', controller: _phone, keyboardType: TextInputType.phone, hint: '+91 98765 43210', validator: (value) => RegExp(r'^\\+?91?[0-9 -]{10,14}$').hasMatch(value?.trim() ?? '') ? null : 'Enter a valid Indian emergency number.'),
+          ])), const SizedBox(height: 18),
+          const MTEmptyNote(icon: PhosphorIconsRegular.lockKey, message: 'Signing and NFC writing are intentionally not enabled in this app build.'), const SizedBox(height: 24),
+          MTButton(label: 'Review tag write', icon: PhosphorIconsRegular.penNib, onPressed: _valid ? _confirm : null),
+        ])),
+      );
+}
+
+class _SettingsScreen extends StatefulWidget {
+  const _SettingsScreen({required this.controller, required this.publicKeyBase64});
+  final ReaderController controller;
+  final String publicKeyBase64;
+  @override
+  State<_SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<_SettingsScreen> {
+  String _language = 'English';
+  @override
+  Widget build(BuildContext context) => _Page(
+        onBack: widget.controller.reset,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const MTPageHeading(title: 'Settings', subtitle: 'Transparency and reader preferences.'), const SizedBox(height: 24),
+          MTCard(child: MTSelect<String>(label: 'Language', value: _language, items: const [DropdownMenuItem(value: 'English', child: Text('English'))], onChanged: (value) => setState(() => _language = value ?? _language))), const SizedBox(height: 12),
+          MTCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const MTCardHeader(title: 'Trusted public key', subtitle: 'Used only to verify; it cannot issue tags.'), const SizedBox(height: 12), Text(widget.publicKeyBase64.isEmpty ? 'Not provisioned in this build' : '${widget.publicKeyBase64.substring(0, widget.publicKeyBase64.length.clamp(0, 16))}…', style: MTTokens.monoData), const SizedBox(height: 4), const Text('Format version 1 · ECDSA P-256', style: TextStyle(color: MTTokens.inkMuted))])), const SizedBox(height: 12),
+          const MTCard(child: MTCardHeader(title: 'About MediTag', subtitle: 'Offline-verifying NFC emergency medical IDs. Tier 2 information is always gated online.')),
+        ]),
+      );
+}
+
+class _AccessPortal extends StatelessWidget {
+  const _AccessPortal({required this.onSelect});
+  final ValueChanged<AppSurface> onSelect;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(
+          child: _Page(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SizedBox(height: 26),
+              const Text('MediTag', style: MTTokens.displayXl),
+              const SizedBox(height: 10),
+              const Text('Medical information that is ready when it matters.', style: TextStyle(color: MTTokens.inkMuted, fontSize: 17, height: 1.4)),
+              const SizedBox(height: 40),
+              _PortalCard(icon: PhosphorIconsRegular.user, title: 'Citizen', message: 'Sign in to manage your MediTag profile and health history.', onTap: () => onSelect(AppSurface.citizen)),
+              const SizedBox(height: 14),
+              _PortalCard(icon: PhosphorIconsRegular.stethoscope, title: 'Doctor', message: 'Verified clinician access for structured patient records.', onTap: () => onSelect(AppSurface.doctor)),
+              const SizedBox(height: 14),
+              _PortalCard(icon: PhosphorIconsRegular.contactlessPayment, title: 'Read a MediTag', message: 'Emergency access. No login, no connection required.', onTap: () => onSelect(AppSurface.reader)),
+              const SizedBox(height: 28),
+              const MTEmptyNote(icon: PhosphorIconsRegular.shieldCheck, message: 'Only signed emergency data is available without an account.'),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _PortalCard extends StatelessWidget {
+  const _PortalCard({required this.icon, required this.title, required this.message, required this.onTap});
   final IconData icon;
   final String title;
-  final String value;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => Card(child: ListTile(leading: Icon(icon, color: color), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(value), trailing: IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _notice(context, 'Editing will update the backend record and issue a freshly signed tag payload.'))));
-}
-
-class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label, required this.onTap, this.destructive = false});
-  final IconData icon;
-  final String label;
+  final String message;
   final VoidCallback onTap;
-  final bool destructive;
   @override
-  Widget build(BuildContext context) => ListTile(contentPadding: EdgeInsets.zero, leading: Icon(icon, color: destructive ? const Color(0xFFB42318) : _ink), title: Text(label, style: TextStyle(fontWeight: FontWeight.w600, color: destructive ? const Color(0xFFB42318) : _ink)), trailing: const Icon(Icons.chevron_right), onTap: onTap);
+  Widget build(BuildContext context) => MTCard(
+        variant: MTCardVariant.emphasised,
+        onTap: onTap,
+        semanticLabel: title,
+        child: Row(children: [
+          DecoratedBox(decoration: const BoxDecoration(color: MTTokens.blueWash, borderRadius: MTTokens.shapeMd), child: Padding(padding: const EdgeInsets.all(13), child: PhosphorIcon(icon, size: 26, color: MTTokens.periwinkle))),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: MTTokens.headlineMd), const SizedBox(height: 4), Text(message, style: const TextStyle(color: MTTokens.inkMuted, height: 1.35))])),
+          const SizedBox(width: 8),
+          PhosphorIcon(PhosphorIconsRegular.caretRight, color: MTTokens.inkMuted),
+        ]),
+      );
 }
 
-class _PrivacyNote extends StatelessWidget {
-  const _PrivacyNote();
+class _CitizenLogin extends StatefulWidget {
+  const _CitizenLogin({required this.onExit});
+  final VoidCallback onExit;
   @override
-  Widget build(BuildContext context) => const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.lock_outline, size: 18, color: Color(0xFF6B7280)), SizedBox(width: 8), Expanded(child: Text('MediTag stores only emergency data on the tag. Detailed medical information is consent-protected.', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.35)))]);
+  State<_CitizenLogin> createState() => _CitizenLoginState();
+}
+
+class _CitizenLoginState extends State<_CitizenLogin> {
+  final _identity = TextEditingController();
+  final _password = TextEditingController();
+  bool _signedIn = false;
+  bool _newProfile = false;
+  @override
+  void dispose() { _identity.dispose(); _password.dispose(); super.dispose(); }
+
+  Future<void> _continue() async {
+    if (_identity.text.trim().isEmpty || _password.text.isEmpty) return;
+    await MTModal.show<void>(context: context, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Profile pairing', style: MTTokens.headlineLg), const SizedBox(height: 10),
+      const Text('The production app will check the signed-in email and phone-number pairing with the account service. Choose a state to preview this frontend flow.', style: TextStyle(color: MTTokens.inkMuted, height: 1.45)), const SizedBox(height: 20),
+      MTButton(label: 'I already have a MediTag', icon: PhosphorIconsRegular.identificationCard, onPressed: () { Navigator.pop(context); setState(() { _newProfile = false; _signedIn = true; }); }), const SizedBox(height: 8),
+      MTButton(label: 'I am new to MediTag', icon: PhosphorIconsRegular.plus, variant: MTButtonVariant.secondary, onPressed: () { Navigator.pop(context); setState(() { _newProfile = true; _signedIn = true; }); }),
+    ]));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_signedIn) return _CitizenShell(onExit: widget.onExit, startOnCreate: _newProfile);
+    return Scaffold(body: SafeArea(child: _Page(onBack: widget.onExit, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const MTPageHeading(title: 'Citizen sign in', subtitle: 'Manage your MediTag profile and private medical history.'), const SizedBox(height: 30),
+      MTCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const MTCardHeader(title: 'Welcome back', subtitle: 'Use your email address or phone number.'), const SizedBox(height: 20),
+        MTTextField(label: 'Email or phone', controller: _identity, keyboardType: TextInputType.emailAddress, hint: 'you@example.com or +91 98765 43210'), const SizedBox(height: 16),
+        MTTextField(label: 'Password', controller: _password, obscureText: true, hint: 'Your password'), const SizedBox(height: 8),
+        Align(alignment: Alignment.centerRight, child: MTButton(label: 'Forgot password?', expand: false, variant: MTButtonVariant.text, onPressed: () => _notice(context, 'Password reset will be connected to the citizen account service.'))), const SizedBox(height: 10),
+        MTButton(label: 'Sign in', icon: PhosphorIconsRegular.arrowRight, onPressed: _continue),
+      ])), const SizedBox(height: 16),
+      const MTEmptyNote(icon: PhosphorIconsRegular.lockKey, message: 'Your detailed health history stays private and is not stored on the NFC tag.'),
+    ]))));
+  }
+}
+
+class _CitizenShell extends StatefulWidget {
+  const _CitizenShell({required this.onExit, required this.startOnCreate});
+  final VoidCallback onExit;
+  final bool startOnCreate;
+  @override
+  State<_CitizenShell> createState() => _CitizenShellState();
+}
+
+class _CitizenShellState extends State<_CitizenShell> {
+  late int _tab = widget.startOnCreate ? 1 : 0;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(child: switch (_tab) { 0 => const _CitizenHome(), 1 => const _CitizenProfileEditor(), _ => _CitizenSettings(onExit: widget.onExit) }),
+        bottomNavigationBar: MTBottomNav(currentIndex: _tab, onChanged: (value) => setState(() => _tab = value), items: const [MTNavItem(icon: PhosphorIconsRegular.house, label: 'Home'), MTNavItem(icon: PhosphorIconsRegular.notePencil, label: 'Create'), MTNavItem(icon: PhosphorIconsRegular.gear, label: 'Settings')]),
+      );
+}
+
+class _CitizenHome extends StatelessWidget {
+  const _CitizenHome();
+  @override
+  Widget build(BuildContext context) => const _Page(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    MTPageHeading(title: 'Your MediTag', subtitle: 'Your emergency information, ready offline.'), SizedBox(height: 22),
+    MTVerificationBanner(state: MTVerificationState.verified), SizedBox(height: 16),
+    MTStatTile(label: 'Blood type', value: 'O-', icon: PhosphorIconsRegular.drop), SizedBox(height: 22),
+    MTCard(child: MTCardHeader(title: 'Emergency profile', subtitle: 'Penicillin, Latex · Diabetes · +91 98765 43210')), SizedBox(height: 12),
+    MTCard(variant: MTCardVariant.flat, child: MTCardHeader(title: 'Your private record', subtitle: 'Update medical history and documents from the Create tab.')),
+  ]));
+}
+
+class _CitizenProfileEditor extends StatefulWidget {
+  const _CitizenProfileEditor();
+  @override
+  State<_CitizenProfileEditor> createState() => _CitizenProfileEditorState();
+}
+
+class _CitizenProfileEditorState extends State<_CitizenProfileEditor> {
+  final _conditions = TextEditingController();
+  final _medications = TextEditingController();
+  @override
+  void dispose() { _conditions.dispose(); _medications.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => _Page(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const MTPageHeading(title: 'Create or update', subtitle: 'Keep your medical profile current. Extra history is saved privately in Tier 2.'), const SizedBox(height: 22),
+    MTCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const MTCardHeader(title: 'Medical profile'), const SizedBox(height: 18), MTTextField(label: 'Conditions', controller: _conditions, hint: 'e.g. Diabetes'), const SizedBox(height: 16), MTTextField(label: 'Medications', controller: _medications, hint: 'e.g. Insulin'), const SizedBox(height: 18), MTButton(label: 'Save profile', icon: PhosphorIconsRegular.floppyDisk, onPressed: () => _notice(context, 'Profile saving will connect to the citizen service.'))])), const SizedBox(height: 14),
+    MTCard(onTap: () => _notice(context, 'Document upload will connect to secure cloud storage.'), child: const MTCardHeader(title: 'Upload medical history', subtitle: 'Add reports, prescriptions, or other documents for authorized clinicians.', trailing: MTBadge(label: 'Private cloud', tone: MTBadgeTone.info, icon: PhosphorIconsRegular.uploadSimple))),
+  ]));
+}
+
+class _CitizenSettings extends StatelessWidget {
+  const _CitizenSettings({required this.onExit});
+  final VoidCallback onExit;
+  @override
+  Widget build(BuildContext context) => _Page(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const MTPageHeading(title: 'Settings', subtitle: 'Your account and privacy.'), const SizedBox(height: 22),
+    const MTCard(child: MTCardHeader(title: 'Account', subtitle: 'aanya@example.com · +91 98765 43210')), const SizedBox(height: 12),
+    MTCard(onTap: onExit, child: MTCardHeader(title: 'Sign out', subtitle: 'Return to MediTag access options', trailing: PhosphorIcon(PhosphorIconsRegular.signOut, color: MTTokens.criticalRed))),
+  ]));
+}
+
+class _DoctorLogin extends StatefulWidget {
+  const _DoctorLogin({required this.onExit, required this.onScan});
+  final VoidCallback onExit;
+  final VoidCallback onScan;
+  @override
+  State<_DoctorLogin> createState() => _DoctorLoginState();
+}
+
+class _DoctorLoginState extends State<_DoctorLogin> {
+  final _doctorId = TextEditingController();
+  final _password = TextEditingController();
+  bool _signedIn = false;
+  @override
+  void dispose() { _doctorId.dispose(); _password.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    if (_signedIn) return _DoctorHome(onExit: widget.onExit, onScan: widget.onScan);
+    return Scaffold(body: SafeArea(child: _Page(onBack: widget.onExit, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const MTPageHeading(title: 'Doctor sign in', subtitle: 'Verified clinician access to structured patient records.'), const SizedBox(height: 30),
+      MTCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const MTBadge(label: 'Clinician ID verification required', tone: MTBadgeTone.info, icon: PhosphorIconsRegular.identificationBadge), const SizedBox(height: 18), MTTextField(label: 'Doctor ID', controller: _doctorId, hint: 'Registration or clinician ID'), const SizedBox(height: 16), MTTextField(label: 'Password', controller: _password, obscureText: true, hint: 'Your password'), const SizedBox(height: 20), MTButton(label: 'Verify and sign in', icon: PhosphorIconsRegular.shieldCheck, onPressed: () { if (_doctorId.text.trim().isNotEmpty && _password.text.isNotEmpty) setState(() => _signedIn = true); })])), const SizedBox(height: 16),
+      const MTEmptyNote(icon: PhosphorIconsRegular.lockKey, message: 'Production doctor identity verification will be enforced by the backend.'),
+    ]))));
+  }
+}
+
+class _DoctorHome extends StatelessWidget {
+  const _DoctorHome({required this.onExit, required this.onScan});
+  final VoidCallback onExit;
+  final VoidCallback onScan;
+  @override
+  Widget build(BuildContext context) => Scaffold(body: SafeArea(child: _Page(onBack: onExit, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const MTPageHeading(title: 'Clinician workspace', subtitle: 'Tap a patient tag to begin a verified emergency workflow.'), const SizedBox(height: 36),
+    MTCard(variant: MTCardVariant.emphasised, onTap: onScan, semanticLabel: 'Tap to scan a MediTag', child: SizedBox(width: double.infinity, height: 245, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [DecoratedBox(decoration: const BoxDecoration(color: MTTokens.blueWash, shape: BoxShape.circle), child: Padding(padding: const EdgeInsets.all(22), child: PhosphorIcon(PhosphorIconsRegular.contactlessPayment, color: MTTokens.periwinkle, size: 46))), const SizedBox(height: 18), Text('Tap to Scan', style: MTTokens.headlineLg), const SizedBox(height: 6), const Text('Read Tier 1 locally, then request the authorized Tier 2 record.', textAlign: TextAlign.center, style: TextStyle(color: MTTokens.inkMuted))]))), const SizedBox(height: 20),
+    const MTEmptyNote(icon: PhosphorIconsRegular.shieldCheck, message: 'A valid signature is required before any patient data is trusted.'),
+  ]))));
+}
+
+String _readable(String value) => value.split('_').map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}').join(' ');
+String _recordValue(Object? value) => value is String ? value : const JsonEncoder.withIndent('  ').convert(value);
+Future<void> _call(BuildContext context, String phone) async {
+  final success = await launchUrl(Uri(scheme: 'tel', path: '+91$phone'));
+  if (!context.mounted || success) return;
+  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Calling is unavailable on this device.')));
 }
 
 void _notice(BuildContext context, String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
-
-void _showEmergencyContacts(BuildContext context) => showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Emergency contacts', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _ink)),
-          const SizedBox(height: 6),
-          const Text('The first contact is included in your signed NFC emergency profile.'),
-          const SizedBox(height: 18),
-          const _InfoCard(title: 'Rohan Sharma', subtitle: '+91 98765 43210 · Primary contact', leading: CircleAvatar(backgroundColor: _brandSoft, child: Icon(Icons.person, color: _brand))),
-          const SizedBox(height: 10),
-          const _InfoCard(title: 'Meera Sharma', subtitle: '+91 91234 56789 · Secondary contact', leading: CircleAvatar(backgroundColor: Color(0xFFEDE9FE), child: Icon(Icons.person, color: Color(0xFF7C3AED)))),
-          const SizedBox(height: 18),
-          FilledButton.icon(onPressed: () { Navigator.of(sheetContext).pop(); _notice(context, 'Adding contacts will be connected to your profile service.'); }, icon: const Icon(Icons.add), label: const Text('Add emergency contact')),
-        ]),
-      ),
-    );

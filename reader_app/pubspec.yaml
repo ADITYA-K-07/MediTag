@@ -13,6 +13,9 @@ dependencies:
   nfc_manager: ^4.1.1
   nfc_manager_ndef: ^1.1.0
   pointycastle: ^4.0.0
+  http: ^1.2.2
+  phosphor_flutter: ^2.1.0
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -21,3 +24,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Variable.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
