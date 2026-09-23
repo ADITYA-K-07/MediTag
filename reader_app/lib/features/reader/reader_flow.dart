@@ -5,10 +5,12 @@ class ReaderFlow extends StatelessWidget {
     super.key,
     required this.controller,
     required this.publicKeyBase64,
+    this.apiConfig = const ApiConfig(baseUrl: '', clinicianToken: ''),
     this.onExit,
   });
   final ReaderController controller;
   final String publicKeyBase64;
+  final ApiConfig apiConfig;
   final VoidCallback? onExit;
 
   @override
@@ -27,7 +29,10 @@ class ReaderFlow extends StatelessWidget {
           ReaderView.tier2Loading => const _Tier2LoadingScreen(),
           ReaderView.tier2Locked => _Tier2LockedScreen(controller: controller),
           ReaderView.tier2Record => _Tier2RecordScreen(controller: controller),
-          ReaderView.issueTag => _IssueTagScreen(controller: controller),
+          ReaderView.issueTag => _IssueTagScreen(
+            controller: controller,
+            apiConfig: apiConfig,
+          ),
           ReaderView.settings => _SettingsScreen(
             controller: controller,
             publicKeyBase64: publicKeyBase64,
@@ -462,8 +467,9 @@ class _Tier2RecordScreen extends StatelessWidget {
 }
 
 class _IssueTagScreen extends StatefulWidget {
-  const _IssueTagScreen({required this.controller});
+  const _IssueTagScreen({required this.controller, required this.apiConfig});
   final ReaderController controller;
+  final ApiConfig apiConfig;
   @override
   State<_IssueTagScreen> createState() => _IssueTagScreenState();
 }
@@ -474,6 +480,8 @@ class _IssueTagScreenState extends State<_IssueTagScreen> {
   final _phone = TextEditingController();
   String _bloodType = 'O+';
   bool _valid = false;
+  bool _busy = false;
+  String? _status;
   @override
   void dispose() {
     _tagId.dispose();
@@ -485,6 +493,13 @@ class _IssueTagScreenState extends State<_IssueTagScreen> {
       setState(() => _valid = _formKey.currentState?.validate() ?? false);
   Future<void> _confirm() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!widget.apiConfig.isIssueConfigured) {
+      setState(() {
+        _status =
+            'Configure MEDITAG_API_BASE_URL and MEDITAG_ADMIN_TOKEN for issuing.';
+      });
+      return;
+    }
     await MTModal.show<void>(
       context: context,
       child: Column(
@@ -512,7 +527,43 @@ class _IssueTagScreenState extends State<_IssueTagScreen> {
         ],
       ),
     );
+
+    if (!mounted) return;
+    setState(() {
+      _busy = true;
+      _status = 'Requesting a signed payload from the issuer…';
+    });
+    try {
+      final issued = await TagIssuer(widget.apiConfig).issue(
+        tagId: int.parse(_tagId.text.trim()),
+        bloodType: _bloodTypeCode(_bloodType),
+        emergencyPhone: _phone.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _status = 'Hold the blank NTAG213 against the phone…');
+      await NfcWriter().writePayload(issued.payload);
+      if (!mounted) return;
+      setState(
+        () => _status =
+            'Tag #${issued.tagId} written successfully. Read it now to verify offline.',
+      );
+    } catch (error) {
+      if (mounted) setState(() => _status = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
+
+  int _bloodTypeCode(String value) => const {
+    'A+': 1,
+    'A-': 2,
+    'B+': 3,
+    'B-': 4,
+    'AB+': 5,
+    'AB-': 6,
+    'O+': 7,
+    'O-': 8,
+  }[value]!;
 
   @override
   Widget build(BuildContext context) => _Page(
@@ -582,16 +633,24 @@ class _IssueTagScreenState extends State<_IssueTagScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          const MTEmptyNote(
-            icon: PhosphorIconsRegular.lockKey,
-            message:
-                'Signing and NFC writing are intentionally not enabled in this app build.',
-          ),
+          if (_status != null)
+            MTEmptyNote(
+              icon: _busy
+                  ? PhosphorIconsRegular.spinnerGap
+                  : PhosphorIconsRegular.checkCircle,
+              message: _status!,
+            )
+          else
+            const MTEmptyNote(
+              icon: PhosphorIconsRegular.lockKey,
+              message:
+                  'The backend signs the emergency fields; this app writes only the signed offline payload.',
+            ),
           const SizedBox(height: 24),
           MTButton(
             label: 'Review tag write',
             icon: PhosphorIconsRegular.penNib,
-            onPressed: _valid ? _confirm : null,
+            onPressed: _valid && !_busy ? _confirm : null,
           ),
         ],
       ),

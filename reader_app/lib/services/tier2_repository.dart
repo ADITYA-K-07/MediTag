@@ -3,16 +3,23 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiConfig {
-  const ApiConfig({required this.baseUrl, required this.clinicianToken});
+  const ApiConfig({
+    required this.baseUrl,
+    required this.clinicianToken,
+    this.adminToken = '',
+  });
 
   factory ApiConfig.fromEnvironment() => const ApiConfig(
     baseUrl: String.fromEnvironment('MEDITAG_API_BASE_URL'),
     clinicianToken: String.fromEnvironment('MEDITAG_CLINICIAN_TOKEN'),
+    adminToken: String.fromEnvironment('MEDITAG_ADMIN_TOKEN'),
   );
 
   final String baseUrl;
   final String clinicianToken;
+  final String adminToken;
   bool get isConfigured => baseUrl.isNotEmpty && clinicianToken.isNotEmpty;
+  bool get isIssueConfigured => baseUrl.isNotEmpty && adminToken.isNotEmpty;
 }
 
 sealed class Tier2Result {

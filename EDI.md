@@ -147,6 +147,17 @@ Once that loop is solid, layer in (in rough priority order):
 
 *Add a new dated entry after each work session. Keep entries factual: what was actually built/decided/changed, and what remains.*
 
+### 2026-09-23 (Android offline write demo)
+**Done:**
+- Added an Android-capable NDEF writer that writes the 79-byte signed Tier 1 payload as one unknown-type record with empty type and identifier.
+- Connected the Issue Tag screen to `POST /tags/issue` using a build-time demo admin token, then writes the returned payload to a writable NTAG213 without locking it.
+- Added capacity and writability checks, local-network HTTP guidance, Android cleartext support for the demo server, and a review-ready write → read → offline-verify flow.
+- Added the direct `ndef_record` dependency and kept cloud medical history outside this milestone.
+
+**Remaining / next steps:**
+- Build/install the debug APK on a physical NFC Android phone and validate a real NTAG213 write/read/tamper cycle.
+- Remove the demo admin token from the mobile client before any production release; move issuance behind a protected admin surface.
+
 ### 2026-09-23 (repository and code organization)
 **Done:**
 - Converted the website from an unconfigured nested Git repository into normal files in the main MediTag repository; preserved its original standalone history in a verified local Git bundle before conversion.

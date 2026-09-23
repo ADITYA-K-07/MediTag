@@ -5,7 +5,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'reader_controller.dart';
+import 'nfc_writer.dart';
 import 'services/tag_scan_service.dart';
+import 'services/tag_issuer.dart';
 import 'services/tier2_repository.dart';
 import 'theme/tokens.dart';
 import 'widgets/mt_components.dart';
@@ -26,6 +28,7 @@ void main() {
         tier2Repository: Tier2Repository(config),
       ),
       publicKeyBase64: _issuerPublicKey,
+      apiConfig: config,
     ),
   );
 }
@@ -38,10 +41,12 @@ class MediTagApp extends StatefulWidget {
     required this.controller,
     this.publicKeyBase64 = '',
     this.initialSurface = AppSurface.portal,
+    this.apiConfig = const ApiConfig(baseUrl: '', clinicianToken: ''),
   });
   final ReaderController controller;
   final String publicKeyBase64;
   final AppSurface initialSurface;
+  final ApiConfig apiConfig;
 
   @override
   State<MediTagApp> createState() => _MediTagAppState();
@@ -68,6 +73,7 @@ class _MediTagAppState extends State<MediTagApp> {
       AppSurface.reader => ReaderFlow(
         controller: widget.controller,
         publicKeyBase64: widget.publicKeyBase64,
+        apiConfig: widget.apiConfig,
         onExit: () => setState(() => _surface = AppSurface.portal),
       ),
       AppSurface.citizen => _CitizenLogin(

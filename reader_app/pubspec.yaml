@@ -12,6 +12,7 @@ dependencies:
   # 4.1.1 is the newest line compatible with the locally installed Dart 3.11.1.
   nfc_manager: ^4.1.1
   nfc_manager_ndef: ^1.1.0
+  ndef_record: ^1.4.2
   pointycastle: ^4.0.0
   http: ^1.2.2
   phosphor_flutter: ^2.1.0

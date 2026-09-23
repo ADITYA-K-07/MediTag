@@ -22,7 +22,8 @@ the main unfinished areas.
 
 ## Target for the 75% milestone
 
-- [ ] Write a backend-issued signed payload to a physical NTAG213 tag
+- [x] Implement the backend-issued signed payload → raw NDEF write path
+- [ ] Write and verify it on a physical NTAG213 tag
 - [ ] Verify read, offline-read, and tamper-failure behavior on Android
 - [ ] Verify the supported NFC flow on iOS
 - [ ] Connect a clinician scan to a real Tier 2 API response
