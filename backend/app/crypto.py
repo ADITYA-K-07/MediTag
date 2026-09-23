@@ -16,13 +16,19 @@ class TagSigner:
         self._private_key = private_key
 
     @classmethod
+    def from_pem(cls, pem: bytes) -> "TagSigner":
+        private_key = serialization.load_pem_private_key(pem, password=None)
+        if not isinstance(private_key, ec.EllipticCurvePrivateKey) or not isinstance(
+            private_key.curve, ec.SECP256R1
+        ):
+            raise ValueError("The issuer key must be an ECDSA P-256 private key.")
+        return cls(private_key)
+
+    @classmethod
     def load_or_create(cls, private_key_path: Path) -> "TagSigner":
         private_key_path.parent.mkdir(parents=True, exist_ok=True)
         if private_key_path.exists():
-            private_key = serialization.load_pem_private_key(private_key_path.read_bytes(), password=None)
-            if not isinstance(private_key, ec.EllipticCurvePrivateKey) or not isinstance(private_key.curve, ec.SECP256R1):
-                raise ValueError("The issuer key must be an ECDSA P-256 private key.")
-            return cls(private_key)
+            return cls.from_pem(private_key_path.read_bytes())
         private_key = ec.generate_private_key(ec.SECP256R1())
         private_key_path.write_bytes(
             private_key.private_bytes(

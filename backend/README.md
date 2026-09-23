@@ -2,6 +2,12 @@
 
 The API issues a signed, 79-byte Tier 1 NFC payload and stores the associated Tier 2 demo record in SQLite. It is an MVP: set real secrets before sharing the API, and do not put real patient data in the demo database.
 
+For a short-lived review deployment, Render can run this service from the
+`backend/` directory. The repository includes [`../render.yaml`](../render.yaml)
+and a step-by-step [`../DEPLOY_DEMO.md`](../DEPLOY_DEMO.md). Set
+`MEDITAG_PRIVATE_KEY_BASE64` in the host so the issuer key remains stable if the
+service restarts.
+
 ## Run locally
 
 ```powershell

@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = Path(os.getenv("MEDITAG_DATA_DIR", ROOT / "data"))
 ADMIN_TOKEN = os.getenv("MEDITAG_ADMIN_TOKEN", "change-me-before-demo")
 CLINICIAN_TOKEN = os.getenv("MEDITAG_CLINICIAN_TOKEN", "demo-clinician-token")
+PRIVATE_KEY_BASE64 = os.getenv("MEDITAG_PRIVATE_KEY_BASE64", "")
 
 
 class IssueTagRequest(BaseModel):
@@ -56,7 +57,14 @@ def require_clinician(authorization: str | None = Header(default=None)) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.signer = TagSigner.load_or_create(DATA_DIR / "issuer-p256-private.pem")
+    if PRIVATE_KEY_BASE64:
+        try:
+            private_key = base64.b64decode(PRIVATE_KEY_BASE64, validate=True)
+            app.state.signer = TagSigner.from_pem(private_key)
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("MEDITAG_PRIVATE_KEY_BASE64 is not a valid P-256 PEM key.") from exc
+    else:
+        app.state.signer = TagSigner.load_or_create(DATA_DIR / "issuer-p256-private.pem")
     app.state.store = TagStore(DATA_DIR / "meditag.sqlite3")
     yield
 
