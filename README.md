@@ -31,7 +31,44 @@ Python backend  --signs & writes-->  NFC tag  --tap-->  Reader app (verifies off
 
 The MVP foundation is built: FastAPI issues compact signed payloads, Flutter verifies them entirely offline, and an automated cross-language test proves a Python-issued P-256 signature verifies in Flutter. See [`EDI.md`](./EDI.md) for the full living project spec, current build priorities, open design questions, and session history.
 
+The concise delivery checklist is maintained in [`PROJECT_STATUS.md`](./PROJECT_STATUS.md).
+
 Start the API from [`backend/README.md`](./backend/README.md), then follow the setup notes in [`reader_app/README.md`](./reader_app/README.md) to run the physical-phone reader.
+
+## Repository layout
+
+```text
+MediTag/
+|- backend/      FastAPI service, protocol implementation, and backend tests
+|- reader_app/   Flutter NFC reader and the three native access surfaces
+|- website/      Browser previews for emergency, citizen, and doctor flows
+|- EDI.md        Living technical specification and decision log
+|- FRONTEND_DESIGN.md
+|                Shared visual and interaction specification
+`- PROJECT_STATUS.md
+                 Short milestone checklist
+```
+
+Each application owns its dependencies and run instructions. Generated output,
+local databases, credentials, and caches are excluded from version control.
+
+## Quality checks
+
+```powershell
+# Backend
+cd backend
+python -m pytest -q
+
+# Flutter
+cd ../reader_app
+flutter analyze
+flutter test
+
+# Website
+cd ../website
+npm run lint
+npm run build
+```
 
 ## Not in scope yet
 

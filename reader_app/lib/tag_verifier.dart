@@ -6,7 +6,8 @@ import 'protocol.dart';
 
 class VerificationResult {
   const VerificationResult._({this.payload, this.error});
-  const VerificationResult.verified(Tier1Payload payload) : this._(payload: payload);
+  const VerificationResult.verified(Tier1Payload payload)
+    : this._(payload: payload);
   const VerificationResult.invalid(String error) : this._(error: error);
   final Tier1Payload? payload;
   final String? error;
@@ -23,7 +24,9 @@ class TagVerifier {
   /// Input is the 65-byte SEC1/X9.62 public key from GET /public-key.
   static ECPublicKey publicKeyFromUncompressed(Uint8List point) {
     if (point.length != 65 || point.first != 4) {
-      throw const FormatException('Expected a 65-byte uncompressed P-256 public key.');
+      throw const FormatException(
+        'Expected a 65-byte uncompressed P-256 public key.',
+      );
     }
     final parameters = ECDomainParameters('prime256v1');
     final q = parameters.curve.decodePoint(point);
@@ -33,11 +36,20 @@ class TagVerifier {
 
   Future<VerificationResult> verify(Uint8List tagBytes) async {
     if (tagBytes.length != tier1TagPayloadLength) {
-      return VerificationResult.invalid('Unexpected NFC payload size (${tagBytes.length} bytes).');
+      return VerificationResult.invalid(
+        'Unexpected NFC payload size (${tagBytes.length} bytes).',
+      );
     }
     try {
-      final unsigned = Uint8List.sublistView(tagBytes, 0, unsignedPayloadLength);
-      final signatureBytes = Uint8List.sublistView(tagBytes, unsignedPayloadLength);
+      final unsigned = Uint8List.sublistView(
+        tagBytes,
+        0,
+        unsignedPayloadLength,
+      );
+      final signatureBytes = Uint8List.sublistView(
+        tagBytes,
+        unsignedPayloadLength,
+      );
       final signature = ECSignature(
         _unsignedBigInt(signatureBytes.sublist(0, 32)),
         _unsignedBigInt(signatureBytes.sublist(32, 64)),
@@ -45,7 +57,9 @@ class TagVerifier {
       final verifier = ECDSASigner(SHA256Digest())
         ..init(false, PublicKeyParameter<ECPublicKey>(_publicKey));
       if (!verifier.verifySignature(unsigned, signature)) {
-        return const VerificationResult.invalid('Signature check failed — do not trust this tag.');
+        return const VerificationResult.invalid(
+          'Signature check failed — do not trust this tag.',
+        );
       }
       return VerificationResult.verified(Tier1Payload.decode(unsigned));
     } on FormatException catch (error) {
@@ -56,5 +70,7 @@ class TagVerifier {
   }
 }
 
-BigInt _unsignedBigInt(List<int> bytes) =>
-    BigInt.parse(bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(), radix: 16);
+BigInt _unsignedBigInt(List<int> bytes) => BigInt.parse(
+  bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
+  radix: 16,
+);

@@ -147,6 +147,35 @@ Once that loop is solid, layer in (in rough priority order):
 
 *Add a new dated entry after each work session. Keep entries factual: what was actually built/decided/changed, and what remains.*
 
+### 2026-09-23 (repository and code organization)
+**Done:**
+- Converted the website from an unconfigured nested Git repository into normal files in the main MediTag repository; preserved its original standalone history in a verified local Git bundle before conversion.
+- Added repository-wide editor, line-ending, generated-file, secret, and cache rules.
+- Replaced the generic website starter documentation and package name with MediTag-specific documentation and naming.
+- Split the 1,700-line Flutter entry file into feature-owned reader, access, citizen, and doctor modules while preserving the existing private widget boundaries and behavior.
+- Added a concise project milestone checklist and documented the repository and Flutter source layouts.
+- Cleared the website lint warnings; website lint/build, Dart analysis, and a backend protocol/signature smoke test pass.
+
+**Remaining / next steps:**
+- Diagnose the local Flutter test runner, which currently stalls before producing test output even though static analysis passes.
+- Continue separating UI state from the large citizen and doctor presentation modules as their real API integrations are implemented.
+
+### 2026-09-18 (website-aligned app redesign)
+**Done:**
+- Aligned the Flutter app with the website's visual system: pale periwinkle canvas, ink-dark primary surfaces, white floating cards, DM Sans display type, Inter body type, tinted tags, rounded icon tiles, and ink-tinted elevation.
+- Expanded the shared `MT*` component library with branded headers, overlines, avatars, icon tiles, dark/orchid card variants, accent actions, responsive page headings, mint/critical verification bands, and a dark blood-type stat card.
+- Redesigned the access portal, verified emergency profile, citizen dashboard, citizen/doctor sign-in, and clinician workspace with responsive mobile/tablet/desktop layouts.
+- Kept color, radius, and elevation decisions centralized in `tokens.dart`; Dart static analysis and all 9 automated tests pass.
+- Rendered the access portal at a 390×844 mobile viewport and fixed the responsive overline overflow found during visual QA.
+
+**Decisions made:**
+- The app now treats the website as the source of truth for visual hierarchy while preserving native NFC and accessibility behavior.
+- Primary actions use the website's ink-dark treatment; accent actions on dark panels use the lighter periwinkle blue for contrast.
+
+**Remaining / next steps:**
+- Connect the redesigned citizen and clinician surfaces to the planned authentication, profile, consent, and Tier 2 APIs.
+- Verify the final build on representative physical Android and iOS devices, including the native NFC permission and scan states.
+
 ### Template for new entries
 ```
 ### YYYY-MM-DD

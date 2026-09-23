@@ -4,12 +4,24 @@ import 'services/tag_scan_service.dart';
 import 'services/tier2_repository.dart';
 import 'tag_verifier.dart';
 
-enum ReaderView { home, scanning, verified, invalid, tier2Loading, tier2Locked, tier2Record, issueTag, settings }
+enum ReaderView {
+  home,
+  scanning,
+  verified,
+  invalid,
+  tier2Loading,
+  tier2Locked,
+  tier2Record,
+  issueTag,
+  settings,
+}
 
 class ReaderController extends ChangeNotifier {
-  ReaderController({required TagScanService scanner, required Tier2Repository tier2Repository})
-      : _scanner = scanner,
-        _tier2Repository = tier2Repository;
+  ReaderController({
+    required TagScanService scanner,
+    required Tier2Repository tier2Repository,
+  }) : _scanner = scanner,
+       _tier2Repository = tier2Repository;
 
   final TagScanService _scanner;
   final Tier2Repository _tier2Repository;
@@ -25,7 +37,9 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
     try {
       verification = await _scanner.scanAndVerify();
-      view = verification!.isVerified ? ReaderView.verified : ReaderView.invalid;
+      view = verification!.isVerified
+          ? ReaderView.verified
+          : ReaderView.invalid;
     } catch (error) {
       view = ReaderView.home;
       scanMessage = error.toString().replaceFirst('Bad state: ', '');
@@ -39,7 +53,9 @@ class ReaderController extends ChangeNotifier {
     view = ReaderView.tier2Loading;
     notifyListeners();
     tier2 = await _tier2Repository.fetch(tagId);
-    view = tier2 is Tier2Record ? ReaderView.tier2Record : ReaderView.tier2Locked;
+    view = tier2 is Tier2Record
+        ? ReaderView.tier2Record
+        : ReaderView.tier2Locked;
     notifyListeners();
   }
 
