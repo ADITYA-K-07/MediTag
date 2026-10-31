@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MediTag app – Citizen dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#5B4BB7}a:hover{color:#463a94}
+button{font:inherit;cursor:pointer}
+button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(91,75,183,.35)}
+.mt-soft{transition:box-shadow .2s,transform .15s}
+.mt-soft:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(28,36,48,.04),0 10px 28px rgba(28,36,48,.08)}
+.mt-soft:active{transform:scale(.98)}
+.mt-press{transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
+.mt-press:active{transform:scale(.98)}
+.mt-sheet{animation:mtUp .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes mtUp{from{transform:translateY(48px);opacity:0}to{transform:none;opacity:1}}
+.mt-fade{animation:mtFade .34s cubic-bezier(.2,.8,.2,1) both}
+@keyframes mtFade{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.mt-scroll{scrollbar-width:none}
+.mt-scroll::-webkit-scrollbar{display:none}
+.mt-stagger>*{animation:mtIn .5s cubic-bezier(.2,.8,.2,1) backwards}
+.mt-stagger>*:nth-child(2){animation-delay:.06s}
+.mt-stagger>*:nth-child(3){animation-delay:.12s}
+.mt-stagger>*:nth-child(4){animation-delay:.18s}
+.mt-stagger>*:nth-child(5){animation-delay:.24s}
+.mt-stagger>*:nth-child(6){animation-delay:.3s}
+.mt-stagger>*:nth-child(7){animation-delay:.36s}
+.mt-stagger>*:nth-child(8){animation-delay:.42s}
+.mt-stagger>*:nth-child(9){animation-delay:.48s}
+.mt-stagger>*:nth-child(n+10){animation-delay:.54s}
+@keyframes mtIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.mt-breathe{animation:mtBreathe 2.4s ease-in-out infinite}
+@keyframes mtBreathe{0%,100%{box-shadow:0 0 0 3px rgba(31,122,92,.18)}50%{box-shadow:0 0 0 8px rgba(31,122,92,.03)}}
+.mt-draw{animation:mtDraw 1.2s cubic-bezier(.2,.8,.2,1) .3s backwards}
+@keyframes mtDraw{from{stroke-dashoffset:150.8}to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion: reduce){.mt-sheet,.mt-fade,.mt-stagger>*,.mt-breathe,.mt-draw{animation:none}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FAFAF8; color: #1C2430; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <div class="mt-scroll mt-stagger" style="flex: 1; overflow-y: auto; box-sizing: border-box; padding: 20px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 13.5px; color: #667085">Good evening</span>
+        <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Rahul Sharma</span>
+      </div>
+      <button aria-label="Account" style="width: 48px; height: 48px; border-radius: 50%; border: 0; background: #E6E1FA; color: #5B4BB7; font-weight: 700; font-size: 16px; box-shadow: 0 0 0 4px rgba(91,75,183,.08)">RS</button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span class="mt-breathe" style="width: 8px; height: 8px; border-radius: 50%; background: #1F7A5C; box-shadow: 0 0 0 4px rgba(31,122,92,.16)"></span>
+      <span style="font-size: 12.5px; color: #667085">Synced with meditag.app · just now</span>
+    </div>
+
+    <sc-if value="{{bannerOn}}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 16px; border-radius: 20px; background: #FFE8D6; color: #A65A1C; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; gap: 12px; align-items: flex-start">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 16h5v5"></path></svg>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 15px; font-weight: 700">2 tags need updating</span>
+            <span style="font-size: 13px; line-height: 1.45">You changed your allergies on 28 Oct. Rewrite your Wallet and Car tags so scanners see the latest info.</span>
+          </div>
+        </div>
+        <button class="mt-press" onClick="{{updateTags}}" style="align-self: flex-start; height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: #A65A1C; color: #FFFFFF; font-size: 14px; font-weight: 700">Update tags now</button>
+      </div>
+    </sc-if>
+
+    <div style="padding: 18px; border-radius: 20px; background: #FFFFFF; border: 1px solid #ECEDEF; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 2px rgba(28,36,48,.04), 0 4px 16px rgba(28,36,48,.05)">
+      <div style="position: relative; width: 72px; height: 72px; flex: none">
+        <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="30" fill="none" stroke="#D6F5E8" stroke-width="8"></circle><circle class="mt-draw" cx="36" cy="36" r="30" fill="none" stroke="#1F7A5C" stroke-width="8" stroke-linecap="round" stroke-dasharray="150.8 188.5" transform="rotate(-90 36 36)"></circle></svg>
+        <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; color: #1F7A5C">80%</span>
+      </div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 15px; font-weight: 700">Profile almost complete</span>
+        <span style="font-size: 13px; color: #667085; line-height: 1.4">Add past surgeries and health insurance to help doctors decide faster.</span>
+      </div>
+    </div>
+
+    <div class="mt-stagger" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <button class="mt-soft" onClick="{{openEmergency}}" style="text-align: left; padding: 16px; border-radius: 18px; border: 0; background: #FCE1E4; color: #1C2430; display: flex; flex-direction: column; gap: 10px">
+        <span style="color: #B4233C"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></svg></span>
+        <span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14.5px; font-weight: 700">Emergency info</span><span style="font-size: 12px; color: #B4233C; font-weight: 600">On your tags</span></span>
+      </button>
+      <button class="mt-soft" onClick="{{openHistory}}" style="text-align: left; padding: 16px; border-radius: 18px; border: 0; background: #E6E1FA; color: #1C2430; display: flex; flex-direction: column; gap: 10px">
+        <span style="color: #5B4BB7"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg></span>
+        <span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14.5px; font-weight: 700">Medical history</span><span style="font-size: 12px; color: #5B4BB7; font-weight: 600">12 records</span></span>
+      </button>
+      <button class="mt-soft" onClick="{{addRecord}}" style="text-align: left; padding: 16px; border-radius: 18px; border: 0; background: #D6F5E8; color: #1C2430; display: flex; flex-direction: column; gap: 10px">
+        <span style="color: #1F7A5C"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></span>
+        <span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14.5px; font-weight: 700">Add record</span><span style="font-size: 12px; color: #1F7A5C; font-weight: 600">PDF or photo</span></span>
+      </button>
+      <button class="mt-soft" onClick="{{showQr}}" style="text-align: left; padding: 16px; border-radius: 18px; border: 0; background: #DCEEFF; color: #1C2430; display: flex; flex-direction: column; gap: 10px">
+        <span style="color: #2563A8"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3z"></path><path d="M21 14v.01"></path><path d="M17 21h4"></path><path d="M21 17v4"></path></svg></span>
+        <span style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14.5px; font-weight: 700">QR wallet card</span><span style="font-size: 12px; color: #2563A8; font-weight: 600">Backup for no-NFC phones</span></span>
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700">My tags</span>
+      <span style="font-size: 13px; color: #667085">{{activeCount}} of 3 active</span>
+    </div>
+
+    <div class="mt-stagger" style="display: flex; flex-direction: column; gap: 10px">
+      <sc-for list="{{tags}}" as="tag" hint-placeholder-count="3">
+        <div style="padding: 14px 14px 14px 16px; border-radius: 18px; background: #FFFFFF; border: 1px solid #ECEDEF; display: flex; align-items: center; gap: 14px; opacity: {{tag.opacity}}">
+          <span style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: {{tag.iconBg}}; color: {{tag.iconFg}}; display: flex; align-items: center; justify-content: center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"></path><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"></path><path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"></path><path d="M16.37 2a20.16 20.16 0 0 1 0 20"></path></svg>
+          </span>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+            <span style="font-size: 15px; font-weight: 700">{{tag.label}}</span>
+            <span style="font-size: 12.5px; color: #667085">{{tag.sub}}</span>
+          </div>
+          <span style="padding: 5px 10px; border-radius: 999px; background: {{tag.chipBg}}; color: {{tag.chipFg}}; font-size: 12px; font-weight: 700; white-space: nowrap">{{tag.status}}</span>
+          <sc-if value="{{tag.canRevoke}}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{tag.askRevoke}}" aria-label="{{tag.revokeLabel}}" style="width: 36px; height: 44px; border: 0; background: none; color: #667085; padding: 0; display: flex; align-items: center; justify-content: center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+            </button>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700">Recent activity</span>
+      <button onClick="{{seeAll}}" style="height: 44px; border: 0; background: none; color: #5B4BB7; font-size: 13.5px; font-weight: 600; padding: 0">See all</button>
+    </div>
+
+    <div style="border-radius: 20px; background: #FFFFFF; border: 1px solid #ECEDEF; display: flex; flex-direction: column">
+      <div style="padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid #ECEDEF">
+        <span style="width: 36px; height: 36px; flex: none; border-radius: 12px; background: #E6E1FA; color: #5B4BB7; display: flex; align-items: center; justify-content: center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2v2"></path><path d="M5 2v2"></path><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"></path><path d="M8 15a6 6 0 0 0 12 0v-3"></path><circle cx="20" cy="10" r="2"></circle></svg>
+        </span>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 14px; font-weight: 600">Dr. A. Mehta viewed your full record</span>
+          <span style="font-size: 12.5px; color: #667085">AIIMS Delhi · Today, 14:02 · access ends in 23 h</span>
+        </div>
+      </div>
+      <div style="padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid #ECEDEF">
+        <span style="width: 36px; height: 36px; flex: none; border-radius: 12px; background: #FCE1E4; color: #B4233C; display: flex; align-items: center; justify-content: center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        </span>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 14px; font-weight: 600">Wallet tag scanned near Pune</span>
+          <span style="font-size: 12.5px; color: #667085">Anonymous · location sent to Priya · 30 Oct, 16:12</span>
+        </div>
+      </div>
+      <div style="padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start">
+        <span style="width: 36px; height: 36px; flex: none; border-radius: 12px; background: #D6F5E8; color: #1F7A5C; display: flex; align-items: center; justify-content: center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.38 3.62a1 1 0 0 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z"></path></svg>
+        </span>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 14px; font-weight: 600">You added a peanut allergy</span>
+          <span style="font-size: 12.5px; color: #667085">From the website · 28 Oct, 21:40</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav aria-label="Main" style="height: 76px; flex: none; box-sizing: border-box; padding: 8px 8px 12px; background: #FFFFFF; border-top: 1px solid #ECEDEF; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr))">
+    <button style="border: 0; background: none; color: #1F7A5C; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 700">
+      <span style="width: 56px; height: 30px; border-radius: 999px; background: #D6F5E8; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg></span>
+      Home
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg></span>
+      Records
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"></path><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"></path><path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"></path><path d="M16.37 2a20.16 20.16 0 0 1 0 20"></path></svg></span>
+      Tags
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+      Access log
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg></span>
+      Settings
+    </button>
+  </nav>
+
+  <sc-if value="{{hasConfirm}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; background: rgba(28,36,48,.38); display: flex; align-items: flex-end">
+      <div class="mt-sheet" style="width: 100%; box-sizing: border-box; background: #FFFFFF; border-radius: 28px 28px 0 0; padding: 12px 24px 28px; display: flex; flex-direction: column; align-items: center; gap: 14px">
+        <span style="width: 40px; height: 5px; border-radius: 999px; background: #ECEDEF"></span>
+        <span style="width: 64px; height: 64px; border-radius: 50%; background: #FCE1E4; color: #B4233C; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 6px rgba(180,35,60,.08)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m4.9 4.9 14.2 14.2"></path></svg>
+        </span>
+        <h2 style="margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 700; text-align: center">Revoke {{confirmLabel}} tag?</h2>
+        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #667085; text-align: center">Anyone who scans it will see "This tag has been deactivated". You'll need to confirm with your fingerprint.</p>
+        <button class="mt-press" onClick="{{confirmRevoke}}" style="width: 100%; height: 56px; margin-top: 6px; border: 0; border-radius: 999px; background: #B4233C; color: #FFFFFF; font-size: 16px; font-weight: 700">Revoke tag</button>
+        <button onClick="{{cancelRevoke}}" style="height: 48px; padding: 0 20px; border: 0; background: none; color: #667085; font-size: 15px; font-weight: 600">Keep it</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+    <div class="mt-fade" role="status" style="position: absolute; left: 20px; right: 20px; bottom: 92px; padding: 14px 16px; border-radius: 16px; background: #1C2430; color: #FFFFFF; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(28,36,48,.25)">
+      <span style="width: 8px; height: 8px; flex: none; border-radius: 50%; background: #D6F5E8; box-shadow: 0 0 0 4px rgba(214,245,232,.25)"></span>
+      <span>{{toast}}</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      bannerOn: true,
+      confirm: null,
+      toast: '',
+      tags: [
+        { id: 'wallet', label: 'Wallet card', status: 'stale', written: '12 Aug' },
+        { id: 'car', label: 'Car windscreen', status: 'stale', written: '12 Aug' },
+        { id: 'band', label: 'Bracelet', status: 'ok', written: '29 Oct' }
+      ]
+    };
+  }
+  componentWillUnmount() {
+    clearTimeout(this._toast);
+  }
+  say(msg) {
+    clearTimeout(this._toast);
+    this.setState({ toast: msg });
+    this._toast = setTimeout(() => this.setState({ toast: '' }), 2600);
+  }
+  renderVals() {
+    const looks = {
+      ok: { status: 'Up to date', chipBg: '#D6F5E8', chipFg: '#1F7A5C', iconBg: '#D6F5E8', iconFg: '#1F7A5C', opacity: 1 },
+      stale: { status: 'Needs update', chipBg: '#FFE8D6', chipFg: '#A65A1C', iconBg: '#FFE8D6', iconFg: '#A65A1C', opacity: 1 },
+      revoked: { status: 'Revoked', chipBg: '#ECEDEF', chipFg: '#4B5563', iconBg: '#ECEDEF', iconFg: '#4B5563', opacity: 0.75 }
+    };
+    const tags = this.state.tags.map((t) => {
+      const look = looks[t.status];
+      return Object.assign({}, t, look, {
+        sub: t.status === 'revoked' ? 'Deactivated just now' : 'Last written ' + t.written + ' · NTAG216',
+        canRevoke: t.status !== 'revoked',
+        revokeLabel: 'Options for ' + t.label,
+        askRevoke: () => this.setState({ confirm: t.id })
+      });
+    });
+    const confirmTag = this.state.tags.find((t) => t.id === this.state.confirm);
+    return {
+      bannerOn: this.state.bannerOn,
+      tags: tags,
+      activeCount: this.state.tags.filter((t) => t.status !== 'revoked').length,
+      hasConfirm: !!confirmTag,
+      confirmLabel: confirmTag ? confirmTag.label : '',
+      hasToast: !!this.state.toast,
+      toast: this.state.toast,
+      updateTags: () => {
+        this.setState({
+          bannerOn: false,
+          tags: this.state.tags.map((t) => t.status === 'stale' ? Object.assign({}, t, { status: 'ok', written: '31 Oct' }) : t)
+        });
+        this.say('Wallet and Car tags rewritten and signed');
+      },
+      confirmRevoke: () => {
+        const id = this.state.confirm;
+        this.setState({
+          confirm: null,
+          tags: this.state.tags.map((t) => t.id === id ? Object.assign({}, t, { status: 'revoked' }) : t)
+        });
+        this.say('Tag revoked on all devices');
+      },
+      cancelRevoke: () => this.setState({ confirm: null }),
+      openEmergency: () => this.say('Opens emergency profile editor'),
+      openHistory: () => this.say('Opens medical history timeline'),
+      addRecord: () => this.say('Opens camera / file picker'),
+      showQr: () => this.say('Shows printable QR wallet card'),
+      seeAll: () => this.say('Opens full access log')
+    };
+  }
+}
+</script>
+</body>
+</html>
