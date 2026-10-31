@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MediTag app – Doctor mode</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#5B4BB7}a:hover{color:#463a94}
+button{font:inherit;cursor:pointer}
+button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(91,75,183,.35)}
+.mt-pulse{animation:mtPulse 1.8s cubic-bezier(.2,.8,.2,1) infinite}
+@keyframes mtPulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.32);opacity:0}}
+.mt-press{transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
+.mt-press:hover{box-shadow:0 0 0 6px rgba(91,75,183,.12),0 10px 32px rgba(91,75,183,.22)}
+.mt-press:active{transform:scale(.98)}
+.mt-soft{transition:box-shadow .2s,transform .15s}
+.mt-soft:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(28,36,48,.04),0 10px 28px rgba(28,36,48,.08)}
+.mt-soft:active{transform:scale(.98)}
+.mt-sheet{animation:mtUp .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes mtUp{from{transform:translateY(48px);opacity:0}to{transform:none;opacity:1}}
+.mt-fade{animation:mtFade .34s cubic-bezier(.2,.8,.2,1) both}
+@keyframes mtFade{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.mt-check{animation:mtFade .3s cubic-bezier(.2,.8,.2,1) both}
+.mt-d2{animation-delay:.35s}
+.mt-d3{animation-delay:.7s}
+.mt-scroll{scrollbar-width:none}
+.mt-scroll::-webkit-scrollbar{display:none}
+.mt-stagger>*{animation:mtIn .5s cubic-bezier(.2,.8,.2,1) backwards}
+.mt-stagger>*:nth-child(2){animation-delay:.06s}
+.mt-stagger>*:nth-child(3){animation-delay:.12s}
+.mt-stagger>*:nth-child(4){animation-delay:.18s}
+.mt-stagger>*:nth-child(5){animation-delay:.24s}
+.mt-stagger>*:nth-child(6){animation-delay:.3s}
+.mt-stagger>*:nth-child(7){animation-delay:.36s}
+.mt-stagger>*:nth-child(n+8){animation-delay:.42s}
+@keyframes mtIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.mt-core{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.mt-scanbtn:hover .mt-core{transform:scale(1.05)}
+.mt-scanbtn:active .mt-core{transform:scale(.94)}
+@media (prefers-reduced-motion: reduce){.mt-pulse,.mt-sheet,.mt-fade,.mt-check,.mt-stagger>*{animation:none}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FAFAF8; color: #1C2430; font-family: Inter, system-ui, sans-serif">
+
+<sc-if value="{{isHome}}" hint-placeholder-val="{{ true }}">
+<div style="height: 844px; display: flex; flex-direction: column">
+  <div class="mt-scroll mt-stagger" style="flex: 1; overflow-y: auto; box-sizing: border-box; padding: 20px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; min-height: 52px">
+      <div style="width: 48px; height: 48px; flex: none; border-radius: 50%; background: #E6E1FA; color: #5B4BB7; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px">AM</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800">Dr. Ananya Mehta</span>
+        <span style="font-size: 12.5px; color: #667085">AIIMS Delhi · Emergency Medicine</span>
+      </div>
+      <sc-if value="{{verified}}" hint-placeholder-val="{{ true }}">
+        <span style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; background: #E6E1FA; color: #5B4BB7; font-size: 12px; font-weight: 700; box-shadow: 0 0 0 4px rgba(91,75,183,.08)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path><path d="m9 12 2 2 4-4"></path></svg>
+          Verified
+        </span>
+      </sc-if>
+      <sc-if value="{{pending}}" hint-placeholder-val="{{ false }}">
+        <span style="padding: 6px 10px; border-radius: 999px; background: #FFE8D6; color: #A65A1C; font-size: 12px; font-weight: 700">Pending</span>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{pending}}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 16px; border-radius: 20px; background: #FFE8D6; color: #A65A1C; display: flex; gap: 12px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 15px; font-weight: 700">Verification in progress</span>
+          <span style="font-size: 13px; line-height: 1.45">We're checking your registration DMC/12345 with the Delhi Medical Council. Until then you see emergency info only.</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="padding: 26px 20px 22px; border-radius: 28px; background: #E6E1FA; display: flex; flex-direction: column; align-items: center; gap: 16px">
+      <button class="mt-scanbtn" onClick="{{startScan}}" aria-label="Scan patient tag" style="position: relative; width: 156px; height: 156px; border: 0; padding: 0; background: none; display: flex; align-items: center; justify-content: center">
+        <span class="mt-pulse" style="position: absolute; inset: 0; border-radius: 50%; background: #D3CBF6"></span>
+        <span style="position: absolute; inset: 0; border-radius: 50%; background: #D3CBF6"></span>
+        <span class="mt-core" style="position: relative; width: 108px; height: 108px; border-radius: 50%; background: #5B4BB7; color: #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 6px rgba(91,75,183,.14), 0 10px 32px rgba(91,75,183,.30)">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"></path><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"></path><path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"></path><path d="M16.37 2a20.16 20.16 0 0 1 0 20"></path></svg>
+        </span>
+      </button>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center">
+        <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 700">Scan patient tag</span>
+        <span style="font-size: 13.5px; color: #4B4380; line-height: 1.45">Emergency info shows instantly, even offline. Full history opens after the tap.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700">Active access</span>
+      <span style="font-size: 13px; color: #667085">Ends 24 h after scan</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <button class="mt-soft" onClick="{{openRahul}}" style="text-align: left; padding: 14px 16px; border-radius: 18px; border: 1px solid #ECEDEF; background: #FFFFFF; color: #1C2430; display: flex; align-items: center; gap: 14px">
+        <span style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: #FCE1E4; color: #B4233C; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px">B+</span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Rahul Sharma</span><span style="font-size: 12.5px; color: #667085">28 M · Scanned today, 14:02</span></span>
+        <span style="padding: 5px 10px; border-radius: 999px; background: #E6E1FA; color: #5B4BB7; font-size: 12px; font-weight: 700">23 h left</span>
+      </button>
+      <button class="mt-soft" style="text-align: left; padding: 14px 16px; border-radius: 18px; border: 1px solid #ECEDEF; background: #FFFFFF; color: #1C2430; display: flex; align-items: center; gap: 14px">
+        <span style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: #FCE1E4; color: #B4233C; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px">O−</span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 700">Meena Kulkarni</span><span style="font-size: 12.5px; color: #667085">61 F · Scanned yesterday, 20:40</span></span>
+        <span style="padding: 5px 10px; border-radius: 999px; background: #FFE8D6; color: #A65A1C; font-size: 12px; font-weight: 700">5 h left</span>
+      </button>
+    </div>
+  </div>
+
+  <nav aria-label="Main" style="height: 76px; flex: none; box-sizing: border-box; padding: 8px 8px 12px; background: #FFFFFF; border-top: 1px solid #ECEDEF; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+    <button style="border: 0; background: none; color: #5B4BB7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 700">
+      <span style="width: 56px; height: 30px; border-radius: 999px; background: #E6E1FA; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"></path><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"></path><path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"></path><path d="M16.37 2a20.16 20.16 0 0 1 0 20"></path></svg></span>
+      Scan
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+      Patients
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+      My activity
+    </button>
+    <button style="border: 0; background: none; color: #667085; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 600">
+      <span style="height: 30px; display: flex; align-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path></svg></span>
+      Profile
+    </button>
+  </nav>
+</div>
+</sc-if>
+
+<sc-if value="{{isCard}}" hint-placeholder-val="{{ false }}">
+<div style="height: 844px; display: flex; flex-direction: column">
+  <div style="height: 68px; flex: none; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; gap: 10px">
+    <button onClick="{{goHome}}" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid #ECEDEF; background: #FFFFFF; color: #1C2430; display: flex; align-items: center; justify-content: center; padding: 0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>
+    </button>
+    <span style="flex: 1; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700">Patient tag</span>
+    <span style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px; background: #D6F5E8; color: #1F7A5C; font-size: 12px; font-weight: 700">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path><path d="m9 12 2 2 4-4"></path></svg>
+      Signature OK
+    </span>
+  </div>
+  <div class="mt-scroll mt-stagger" style="flex: 1; overflow-y: auto; box-sizing: border-box; padding: 4px 20px 28px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: center; gap: 14px">
+      <div style="width: 56px; height: 56px; flex: none; border-radius: 50%; background: #E6E1FA; color: #5B4BB7; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px">RS</div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 800">Rahul Sharma</span>
+        <span style="font-size: 13.5px; color: #667085">28 yrs · Male · Organ donor · Wallet tag</span>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px">
+      <div style="padding: 14px; border-radius: 20px; background: #FCE1E4; display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #B4233C">Blood</span>
+        <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 44px; font-weight: 800; line-height: 1; color: #B4233C">B+</span>
+      </div>
+      <div style="padding: 14px; border-radius: 20px; border: 1.5px solid #FCE1E4; background: #FFFFFF; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #B4233C">Allergies</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <span style="padding: 5px 10px; border-radius: 999px; background: #FCE1E4; color: #B4233C; font-size: 13px; font-weight: 600">Penicillin</span>
+          <span style="padding: 5px 10px; border-radius: 999px; background: #FCE1E4; color: #B4233C; font-size: 13px; font-weight: 600">Peanuts</span>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 16px; border-radius: 18px; background: #FFFFFF; border: 1px solid #ECEDEF; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5B4BB7">Conditions &amp; medicines</span>
+      <span style="font-size: 15.5px; font-weight: 600">Type 1 Diabetes</span>
+      <span style="font-size: 13.5px; color: #667085">Insulin glargine · 20 units at night</span>
+    </div>
+    <div style="padding: 14px 16px; border-radius: 18px; background: #FFFFFF; border: 1px solid #ECEDEF; display: flex; align-items: center; gap: 12px">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14.5px; font-weight: 600">Priya Sharma · Mother</span><span style="font-size: 12.5px; color: #667085">+91 98765 43210</span></div>
+      <button onClick="{{callFamily}}" aria-label="Call Priya Sharma" style="width: 48px; height: 48px; border-radius: 50%; border: 0; background: #FCE1E4; color: #B4233C; display: flex; align-items: center; justify-content: center; padding: 0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+      </button>
+    </div>
+
+    <sc-if value="{{verified}}" hint-placeholder-val="{{ true }}">
+      <button class="mt-press" onClick="{{requestAccess}}" style="margin-top: 6px; min-height: 76px; border: 0; border-radius: 20px; background: #5B4BB7; color: #FFFFFF; display: flex; align-items: center; gap: 14px; padding: 14px 18px; text-align: left; box-shadow: 0 0 0 4px rgba(91,75,183,.10), 0 8px 24px rgba(91,75,183,.22)">
+        <span style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>
+        </span>
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 16.5px; font-weight: 700">View full medical history</span>
+          <span style="font-size: 12.5px">Logged · the patient will be notified</span>
+        </span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+      </button>
+    </sc-if>
+    <sc-if value="{{pending}}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top: 6px; padding: 16px 18px; border-radius: 20px; background: #F2F3F5; color: #4B5563; display: flex; align-items: center; gap: 12px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        <span style="font-size: 14px; line-height: 1.45"><b>Full history locked.</b> It unlocks once your registration is verified.</span>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isGranting}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; background: rgba(28,36,48,.38); display: flex; align-items: flex-end">
+  <div class="mt-sheet" style="width: 100%; box-sizing: border-box; background: #FFFFFF; border-radius: 28px 28px 0 0; padding: 12px 24px 28px; display: flex; flex-direction: column; gap: 16px">
+    <span style="align-self: center; width: 40px; height: 5px; border-radius: 999px; background: #ECEDEF"></span>
+    <h2 style="margin: 4px 0 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 700">Opening full record</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div class="mt-check" style="display: flex; align-items: center; gap: 12px; font-size: 14.5px">
+        <span style="width: 28px; height: 28px; flex: none; border-radius: 50%; background: #D6F5E8; color: #1F7A5C; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+        Doctor verified · NMC registry
+      </div>
+      <div class="mt-check mt-d2" style="display: flex; align-items: center; gap: 12px; font-size: 14.5px">
+        <span style="width: 28px; height: 28px; flex: none; border-radius: 50%; background: #D6F5E8; color: #1F7A5C; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+        Tag tapped 4 seconds ago
+      </div>
+      <div class="mt-check mt-d3" style="display: flex; align-items: center; gap: 12px; font-size: 14.5px">
+        <span style="width: 28px; height: 28px; flex: none; border-radius: 50%; background: #D6F5E8; color: #1F7A5C; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+        Tag active · not revoked
+      </div>
+    </div>
+    <p style="margin: 0; padding: 12px 14px; border-radius: 14px; background: #E6E1FA; color: #4B4380; font-size: 13px; line-height: 1.45">Access lasts 24 hours. Rahul will get a notification that you viewed his record.</p>
+    <button class="mt-press" onClick="{{openHistory}}" style="height: 56px; border: 0; border-radius: 999px; background: #5B4BB7; color: #FFFFFF; font-size: 16px; font-weight: 700">Continue</button>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isHistory}}" hint-placeholder-val="{{ false }}">
+<div style="height: 844px; display: flex; flex-direction: column">
+  <div style="height: 68px; flex: none; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; gap: 10px">
+    <button onClick="{{goHome}}" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid #ECEDEF; background: #FFFFFF; color: #1C2430; display: flex; align-items: center; justify-content: center; padding: 0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>
+    </button>
+    <span style="flex: 1; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700">Rahul Sharma</span>
+    <span style="padding: 6px 11px; border-radius: 999px; background: #E6E1FA; color: #5B4BB7; font-size: 12px; font-weight: 700">Access · 23 h 59 m</span>
+  </div>
+  <div class="mt-scroll mt-stagger" style="flex: 1; overflow-y: auto; box-sizing: border-box; padding: 4px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; flex-wrap: wrap; gap: 6px">
+      <span style="padding: 6px 11px; border-radius: 999px; background: #FCE1E4; color: #B4233C; font-size: 12.5px; font-weight: 800">B+</span>
+      <span style="padding: 6px 11px; border-radius: 999px; background: #FCE1E4; color: #B4233C; font-size: 12.5px; font-weight: 600">Penicillin</span>
+      <span style="padding: 6px 11px; border-radius: 999px; background: #FCE1E4; color: #B4233C; font-size: 12.5px; font-weight: 600">Peanuts</span>
+      <span style="padding: 6px 11px; border-radius: 999px; background: #E6E1FA; color: #5B4BB7; font-size: 12.5px; font-weight: 600">Type 1 Diabetes</span>
+    </div>
+
+    <div role="tablist" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 4px; border-radius: 999px; background: #F2F3F5">
+      <button role="tab" aria-selected="true" style="height: 40px; border: 0; border-radius: 999px; background: #FFFFFF; color: #1C2430; font-size: 13.5px; font-weight: 700; box-shadow: 0 1px 2px rgba(28,36,48,.06), 0 4px 12px rgba(28,36,48,.06)">Timeline</button>
+      <button role="tab" aria-selected="false" style="height: 40px; border: 0; border-radius: 999px; background: none; color: #667085; font-size: 13.5px; font-weight: 600">Documents</button>
+      <button role="tab" aria-selected="false" style="height: 40px; border: 0; border-radius: 999px; background: none; color: #667085; font-size: 13.5px; font-weight: 600">Notes</button>
+    </div>
+
+    <div class="mt-stagger" style="display: flex; flex-direction: column">
+      <sc-if value="{{noteAdded}}" hint-placeholder-val="{{ false }}">
+        <div class="mt-fade" style="display: flex; gap: 14px">
+          <div style="display: flex; flex-direction: column; align-items: center; width: 14px; flex: none">
+            <span style="width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; background: #5B4BB7; box-shadow: 0 0 0 4px rgba(91,75,183,.18)"></span>
+            <span style="flex: 1; width: 2px; background: #ECEDEF"></span>
+          </div>
+          <div style="flex: 1; padding: 0 0 18px; display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 12px; font-weight: 700; color: #5B4BB7">TODAY · YOUR NOTE</span>
+            <div style="padding: 12px 14px; border-radius: 16px; background: #E6E1FA; font-size: 13.5px; line-height: 1.5">Admitted after road accident. Head CT clear. Avoid penicillin-class antibiotics; started IV insulin protocol.</div>
+          </div>
+        </div>
+      </sc-if>
+      <div style="display: flex; gap: 14px">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 14px; flex: none">
+          <span style="width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; background: #2563A8"></span>
+          <span style="flex: 1; width: 2px; background: #ECEDEF"></span>
+        </div>
+        <div style="flex: 1; padding: 0 0 18px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; font-weight: 700; color: #667085">SEP 2026 · LAB</span>
+          <span style="font-size: 15px; font-weight: 600">HbA1c blood test report</span>
+          <span style="font-size: 13px; color: #667085">Apollo Diagnostics, Pune</span>
+          <button onClick="{{openPdf}}" style="align-self: flex-start; height: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: #DCEEFF; color: #2563A8; font-size: 13px; font-weight: 700">Open PDF</button>
+        </div>
+      </div>
+      <div style="display: flex; gap: 14px">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 14px; flex: none">
+          <span style="width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; background: #1F7A5C"></span>
+          <span style="flex: 1; width: 2px; background: #ECEDEF"></span>
+        </div>
+        <div style="flex: 1; padding: 0 0 18px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; font-weight: 700; color: #667085">AUG 2026 · PRESCRIPTION</span>
+          <span style="font-size: 15px; font-weight: 600">Insulin glargine revised to 20 units</span>
+          <span style="font-size: 13px; color: #667085">Dr. R. Iyer · Endocrinology</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 14px">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 14px; flex: none">
+          <span style="width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; background: #B4233C"></span>
+          <span style="flex: 1; width: 2px; background: #ECEDEF"></span>
+        </div>
+        <div style="flex: 1; padding: 0 0 18px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; font-weight: 700; color: #667085">MAR 2019 · SURGERY</span>
+          <span style="font-size: 15px; font-weight: 600">Laparoscopic appendectomy</span>
+          <span style="font-size: 13px; color: #667085">Fortis Hospital · general anaesthesia, no complications</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 14px">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 14px; flex: none">
+          <span style="width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; background: #5B4BB7"></span>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; font-weight: 700; color: #667085">2012 · DIAGNOSIS</span>
+          <span style="font-size: 15px; font-weight: 600">Type 1 Diabetes diagnosed</span>
+          <span style="font-size: 13px; color: #667085">KEM Hospital, Pune</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="flex: none; padding: 12px 20px 20px; background: #FAFAF8; border-top: 1px solid #ECEDEF">
+    <button class="mt-press" onClick="{{addNote}}" style="width: 100%; height: 56px; border: 0; border-radius: 999px; background: #5B4BB7; color: #FFFFFF; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      {{noteLabel}}
+    </button>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+  <div class="mt-fade" role="status" style="position: absolute; left: 20px; right: 20px; bottom: 96px; padding: 14px 16px; border-radius: 16px; background: #1C2430; color: #FFFFFF; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(28,36,48,.25)">
+    <span style="width: 8px; height: 8px; flex: none; border-radius: 50%; background: #E6E1FA; box-shadow: 0 0 0 4px rgba(230,225,250,.25)"></span>
+    <span>{{toast}}</span>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"verified":{"editor":"boolean","default":true},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { screen: 'home', toast: '', noteAdded: false };
+  }
+  componentWillUnmount() {
+    clearTimeout(this._toast);
+    clearTimeout(this._grant);
+  }
+  say(msg) {
+    clearTimeout(this._toast);
+    this.setState({ toast: msg });
+    this._toast = setTimeout(() => this.setState({ toast: '' }), 2400);
+  }
+  go(screen) {
+    clearTimeout(this._grant);
+    this.setState({ screen: screen });
+  }
+  renderVals() {
+    const screen = this.state.screen;
+    const verified = this.props.verified ?? true;
+    return {
+      isHome: screen === 'home',
+      isCard: screen === 'card' || screen === 'granting',
+      isGranting: screen === 'granting',
+      isHistory: screen === 'history',
+      verified: verified,
+      pending: !verified,
+      noteAdded: this.state.noteAdded,
+      noteLabel: this.state.noteAdded ? 'Add another note' : 'Add clinical note',
+      hasToast: !!this.state.toast,
+      toast: this.state.toast,
+      startScan: () => {
+        this.go('card');
+        this.say('Tag read · signature verified');
+      },
+      openRahul: () => (verified ? this.go('history') : this.go('card')),
+      goHome: () => this.go('home'),
+      requestAccess: () => {
+        this.go('granting');
+        this._grant = setTimeout(() => this.setState({ screen: 'history' }), 2600);
+      },
+      openHistory: () => this.go('history'),
+      callFamily: () => this.say('Calling Priya Sharma (Mother)…'),
+      openPdf: () => this.say('Opens PDF · link valid 5 minutes'),
+      addNote: () => {
+        this.setState({ noteAdded: true });
+        this.say('Note saved · Rahul notified');
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

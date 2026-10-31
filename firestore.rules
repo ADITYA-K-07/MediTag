@@ -1,0 +1,76 @@
+rules_version = '2';
+
+// Clients read and write only their own profile and records. Everything that grants access or
+// touches tags goes through Cloud Functions (admin SDK, which bypasses these rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() { return signedIn() && request.auth.token.role == 'admin'; }
+    function isVerifiedDoctor() {
+      return signedIn() && request.auth.token.role == 'doctor' && request.auth.token.verified == true;
+    }
+    // requestPatientAccess writes accessGrants/{doctorUid}_{patientUid}; access lasts until expiresAt.
+    function hasGrant(patientUid) {
+      let path = /databases/$(database)/documents/accessGrants/$(request.auth.uid + '_' + patientUid);
+      return isVerifiedDoctor() && exists(path) && get(path).data.expiresAt > request.time;
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create: if isSelf(uid) && request.resource.data.role == 'citizen';
+      allow update: if isSelf(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+
+      match /notifications/{id} {
+        allow read: if isSelf(uid);
+        allow update: if isSelf(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      }
+    }
+
+    match /emergencyProfiles/{uid} {
+      allow read, write: if isSelf(uid);
+      allow get: if hasGrant(uid);
+    }
+
+    match /medicalRecords/{uid}/entries/{entryId} {
+      allow read: if isSelf(uid) || hasGrant(uid);
+      allow create, update: if isSelf(uid) && request.resource.data.authorType == 'citizen' && request.resource.data.authorId == uid;
+      allow delete: if isSelf(uid) && resource.data.authorType == 'citizen';
+      // Doctor notes are added while the grant is active and can't be edited afterwards.
+      allow create: if hasGrant(uid) && request.resource.data.authorType == 'doctor' && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.type == 'note';
+    }
+
+    match /doctors/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create: if isSelf(uid) && request.resource.data.status == 'pending';
+      allow update: if isSelf(uid) && resource.data.status != 'verified'
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'reviewedBy', 'reviewedAt', 'rejectionReason']);
+    }
+
+    match /tags/{tagId} {
+      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Encrypted NTAG passwords. Server only.
+    match /tagSecrets/{tagId} {
+      allow read, write: if false;
+    }
+
+    match /accessGrants/{grantId} {
+      allow read: if signedIn() && (resource.data.doctorUid == request.auth.uid || resource.data.patientUid == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /publicScans/{id} {
+      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /auditLogs/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.targetUid == request.auth.uid);
+      allow write: if false;
+    }
+  }
+}

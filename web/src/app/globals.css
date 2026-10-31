@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+/* Design tokens (generated from design/tokens.json) exposed as Tailwind colours: bg-mint-pastel, text-rose, … */
+@theme inline {
+  --color-mint-pastel: var(--mint-pastel);
+  --color-mint: var(--mint-strong);
+  --color-lavender-pastel: var(--lavender-pastel);
+  --color-lavender: var(--lavender-strong);
+  --color-rose-pastel: var(--rose-pastel);
+  --color-rose: var(--rose-strong);
+  --color-peach-pastel: var(--peach-pastel);
+  --color-peach: var(--peach-strong);
+  --color-sky-pastel: var(--sky-pastel);
+  --color-sky: var(--sky-strong);
+  --color-bg: var(--background);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --font-heading: var(--font-jakarta), system-ui, sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --radius-card: var(--radius-card);
+}
+
+body {
+  background: var(--background);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(91, 75, 183, 0.35);
+}
+
+/* Glows, not gradients. */
+.glow-rose { box-shadow: 0 0 0 6px rgba(180, 35, 60, 0.12), 0 10px 32px rgba(180, 35, 60, 0.24); }
+.glow-mint { box-shadow: 0 0 0 4px rgba(31, 122, 92, 0.1), 0 8px 24px rgba(31, 122, 92, 0.16); }
+.shadow-card { box-shadow: 0 1px 2px rgba(28, 36, 48, 0.04), 0 4px 16px rgba(28, 36, 48, 0.05); }
+
+/* Motion — matches the mockups in design/mockups. */
+.mt-stagger > * { animation: mt-in 0.5s var(--ease) backwards; }
+.mt-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.mt-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.mt-stagger > *:nth-child(4) { animation-delay: 0.18s; }
+.mt-stagger > *:nth-child(5) { animation-delay: 0.24s; }
+.mt-stagger > *:nth-child(6) { animation-delay: 0.3s; }
+.mt-stagger > *:nth-child(7) { animation-delay: 0.36s; }
+.mt-stagger > *:nth-child(n + 8) { animation-delay: 0.42s; }
+.mt-pop { animation: mt-pop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.25) backwards; }
+.mt-pulse { animation: mt-pulse 1.8s var(--ease) infinite; }
+.mt-ring { animation: mt-ring 2.4s var(--ease) infinite; }
+.mt-ring-2 { animation-delay: 0.8s; }
+.mt-ring-3 { animation-delay: 1.6s; }
+.mt-tick { stroke-dasharray: 24; stroke-dashoffset: 24; animation: mt-tick 0.45s 0.2s var(--ease) forwards; }
+.mt-shine { animation: mt-shine 1.6s ease-out 0.5s 2; }
+.mt-press { transition: transform var(--motion-fast) var(--ease), box-shadow var(--motion-base); }
+.mt-press:active { transform: scale(0.97); }
+
+@keyframes mt-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes mt-pop { from { opacity: 0; transform: scale(0.85); } }
+@keyframes mt-pulse { from { transform: scale(1); opacity: 0.6; } to { transform: scale(1.32); opacity: 0; } }
+@keyframes mt-ring { from { transform: scale(0.45); opacity: 0.6; } to { transform: scale(1.5); opacity: 0; } }
+@keyframes mt-tick { to { stroke-dashoffset: 0; } }
+@keyframes mt-shine { from { box-shadow: 0 0 0 0 rgba(31, 122, 92, 0.35); } to { box-shadow: 0 0 0 12px rgba(31, 122, 92, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-stagger > *, .mt-pop, .mt-pulse, .mt-ring, .mt-shine { animation: none; }
+  .mt-tick { animation: none; stroke-dashoffset: 0; }
+}
