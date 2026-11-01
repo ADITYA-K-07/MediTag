@@ -1,7 +1,5 @@
 node_modules/
 dist/
-lib/
-!app/lib/
 .next/
 out/
 coverage/

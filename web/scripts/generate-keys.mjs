@@ -1,9 +1,9 @@
 // Generates the tag-signing key pair and the tag-password encryption key, as ready-to-paste env lines.
 // The two secrets go only into web/.env.local and Vercel's Environment Variables (see SETUP.md).
-import { createPublicKey, generateKeyPairSync, randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
-const jwk = createPublicKey(publicKey).export({ format: 'jwk' });
+const jwk = publicKey.export({ format: 'jwk' });
 const raw = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')]);
 const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
 
