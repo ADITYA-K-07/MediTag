@@ -1,4 +1,4 @@
-package com.meditag.meditag
+package com.meditag.app
 
 import io.flutter.embedding.android.FlutterActivity
 

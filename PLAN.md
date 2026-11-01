@@ -2,6 +2,13 @@
 
 > An NFC tag that carries a person's emergency medical info offline, plus a secure link to their full medical history in the cloud. Available as a **mobile app and a website**, kept in sync, with a **public "Scan a Tag" button** anyone can use at an accident scene.
 
+> **Update (free-tier hosting):** the project runs entirely on free plans. Cloud Functions and Firebase Storage need the paid Blaze plan, so:
+> - **Server logic:** the "Cloud Functions" described below run as **Next.js API routes on Vercel Hobby**, using the Firebase Admin SDK.
+> - **Medical files:** these go to a **private Supabase Storage bucket**.
+> - **Login and database:** Firebase Auth and Firestore stay on the free **Spark** plan.
+>
+> The design, security model and data model are unchanged. See README.md and SETUP.md.
+
 ---
 
 ## 1. Problem & Solution (one paragraph for the report)
