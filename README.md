@@ -1,17 +1,40 @@
 # MediTag
 
-An NFC tag that carries a person's emergency medical info offline, plus a secure link to their full history in the cloud. Anyone can scan a tag to see blood group and allergies and call the person's family. Verified doctors can open the full medical history. See [PLAN.md](PLAN.md) for the full design and [design/mockups](design/mockups) for the UI mockups.
+An NFC tag that carries a person's emergency medical info offline, plus a secure link to their full history in the cloud. Anyone can scan a tag to see blood group and allergies and call the person's family. Verified doctors can open the full medical history. See [PLAN.md](PLAN.md) for the design, [design/mockups](design/mockups) for the UI mockups, and **[SETUP.md](SETUP.md) to create the free accounts**.
+
+## Free-tier architecture
+
+| Piece | Runs on | Cost |
+|---|---|---|
+| Login and database | Firebase **Spark**: Auth + Firestore | Free |
+| Website **and server logic** (tag signing, doctor access, admin review, file links) | Next.js on Vercel **Hobby**: pages + `/api/*` routes using the Firebase Admin SDK | Free |
+| Medical files (PDFs, scans) | Supabase Storage, private bucket | Free (1 GB) |
+| Mobile app | Flutter (Android / iOS) | Free |
 
 ## Repository
 
 | Folder | What |
 |---|---|
-| `functions/` | Firebase Cloud Functions (TypeScript): tag payload signing, tag passwords, doctor access grants, admin review |
-| `web/` | Website (Next.js PWA): home page, **Scan a MediTag** (Web NFC), public emergency page `/e/<tagId>` |
+| `web/` | Website + API. `src/app` holds the pages and `/api` routes; `src/server` holds server-only logic; `src/server/core` holds the pure, unit-tested tag and access rules. |
 | `app/` | Mobile app (Flutter): **Scan a MediTag** with offline signature check |
 | `schema/` | Shared tag format: payload JSON Schema, binary envelope spec, cross-platform test vectors |
 | `design/` | Design tokens (`tokens.json` → CSS + Dart) and mockups |
-| `firestore.rules`, `storage.rules` | Who can read and write what |
+| `firestore.rules` | Who can read and write what in Firestore (deploy with `firebase deploy --only firestore`) |
+
+### API (all need `Authorization: Bearer <Firebase ID token>`)
+
+| Route | Who | Does |
+|---|---|---|
+| `POST /api/tags` `{label}` | Citizen | Signed payload + write password for a new tag (max 3 active) |
+| `POST /api/tags/:id/confirm` `{nfcUid}` | Citizen | Activates the tag after the app read it back |
+| `POST /api/tags/:id/rewrite` | Citizen | Re-signs the profile and returns the tag password to update it |
+| `POST /api/tags/:id/revoke` | Citizen | Deactivates a lost tag |
+| `POST /api/access` `{tagId, nfcUid, tappedAt}` | Verified doctor | 24-hour access after a tap; logged and the patient is notified |
+| `POST /api/admin/doctors/:uid/review` `{approve, reason?}` | Admin | Approves or rejects a doctor |
+| `POST /api/files/upload` `{fileName, contentType, size}` | Citizen | Signed upload URL into their private folder |
+| `POST /api/files/download` `{path}` | Owner / granted doctor | 5-minute download link |
+
+The public emergency page `/e/<tagId>` reads Firestore directly on the server.
 
 ## How a tag is trusted
 
@@ -20,35 +43,26 @@ The server signs each tag's emergency data with ECDSA P-256. The website and app
 ## Running it
 
 ```bash
-# Server logic tests
-npm --prefix functions install
-npm --prefix functions test
-
-# Website (demo mode works without Firebase: try the demo tags on /scan)
-npm --prefix web install
-npm --prefix web run dev       # http://localhost:3000
-npm --prefix web test
-
-# Mobile app
-cd app && flutter test && flutter run
+cd web
+npm install
+npm test            # tag format, signing, access rules
+npm run dev         # http://localhost:3000
 ```
-
-Without configured keys, the website and app run in **demo mode**: they trust only the throwaway test key in `schema/test-vectors.json` and offer "Genuine tag" and "Tampered tag" buttons, so you can demo without hardware.
-
-### Real keys
 
 ```bash
-npm --prefix functions run keys          # prints the private key, public key and password-encryption key
-npx firebase-tools functions:secrets:set TAG_SIGNING_KEY
-npx firebase-tools functions:secrets:set TAG_SECRET_KEY
+cd app
+flutter test
+flutter run --dart-define=TAG_PUBLIC_KEYS='{"1":"04…"}'
 ```
 
-Give the clients the public key:
+Without `web/.env.local` (see `web/.env.example`), the site runs in **demo mode**:
+- `/scan` offers "Genuine tag" and "Tampered tag" buttons using the throwaway test key.
+- `/e/k8Fq2xLm9Pz4Rt7W` shows the demo person.
+- The API answers `503 not configured`.
 
-- **Website:** `NEXT_PUBLIC_TAG_PUBLIC_KEYS='{"1":"04…"}'`
-- **App:** `flutter run --dart-define=TAG_PUBLIC_KEYS='{"1":"04…"}'`
+The app has the same demo mode when built without `TAG_PUBLIC_KEYS`.
 
-After changing the tag format, run `npm --prefix functions run vectors` to regenerate the shared test vectors.
+After changing the tag format, run `npm run vectors` in `web/` to regenerate the shared test vectors.
 
 ### Design tokens
 

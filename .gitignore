@@ -15,3 +15,7 @@ firestore-debug.log*
 ui-debug.log*
 *.local
 .DS_Store
+
+# Firebase / Flutter platform config
+app/android/app/google-services.json
+app/ios/Runner/GoogleService-Info.plist
