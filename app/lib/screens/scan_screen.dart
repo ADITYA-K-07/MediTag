@@ -14,9 +14,12 @@ enum _Step { idle, scanning, found, card, error }
 
 /// Bystander "Scan a MediTag" flow. No login: anyone at an accident scene can use it.
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key, required this.config});
+  const ScanScreen({super.key, required this.config, this.onOpenAccount});
 
   final AppConfig config;
+
+  /// Opens login / the citizen's tags. Null hides the button (e.g. in tests without Firebase).
+  final void Function(BuildContext context)? onOpenAccount;
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -115,6 +118,13 @@ class _ScanScreenState extends State<ScanScreen> {
             ),
             const SizedBox(width: 10),
             Text('MediTag', style: text.titleMedium!.copyWith(fontWeight: FontWeight.w800, fontSize: 19)),
+            const Spacer(),
+            if (widget.onOpenAccount != null)
+              FilledButton(
+                onPressed: () => widget.onOpenAccount!(context),
+                style: FilledButton.styleFrom(backgroundColor: MtColors.navy, shape: const StadiumBorder()),
+                child: const Text('My tags', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
           ]),
           const SizedBox(height: 32),
           Text(
