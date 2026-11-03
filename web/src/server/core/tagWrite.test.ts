@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { decideAccess, normaliseUid, TAP_WINDOW_MS } from './access';
-import { decodeEnvelope, encodeEnvelope, EnvelopeError } from './envelope';
+import { decodeEnvelope, encodeEnvelope, EnvelopeError, envelopeLength } from './envelope';
 import { newTagId, newTagPassword, TAG_ID_PATTERN } from './ids';
 import { fitsOnNtag216, NTAG216_USER_BYTES, tagBytesNeeded, uriPayloadLength } from './ndef';
-import { buildPayload, EmergencyProfile, validatePayload } from './payload';
+import { buildPayload, EmergencyProfile, encodePayloadJson, validatePayload } from './payload';
 import { openSecret, sealSecret } from './secrets';
 import { generateSigningKeyPair, rawPublicKey, signBytes, verifyBytes } from './signing';
 import { planTagWrite, TagWriteError } from './tagWrite';
@@ -136,6 +136,12 @@ describe('planTagWrite', () => {
     const env = decodeEnvelope(Buffer.from(plan.envelope, 'base64'));
     expect(verifyBytes(env.json, env.signature, keys.publicKeyPem)).toBe(true);
     expect(JSON.parse(new TextDecoder().decode(env.json))).toMatchObject({ tid: opts.tagId, bg: 'B+', ts: NOW / 1000 });
+  });
+
+  it('matches the browser-side size estimate exactly', () => {
+    const plan = planTagWrite({ ...opts, profile: rahul });
+    const json = encodePayloadJson(buildPayload(rahul, opts.tagId, NOW / 1000));
+    expect(tagBytesNeeded({ uri: plan.uri, envelopeLength: envelopeLength(json.length) })).toBe(plan.bytesNeeded);
   });
 
   it('refuses profiles that are too big for the tag', () => {

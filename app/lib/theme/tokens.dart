@@ -12,6 +12,9 @@ abstract final class MtColors {
   static const peachStrong = Color(0xFFA65A1C);
   static const skyPastel = Color(0xFFDCEEFF);
   static const skyStrong = Color(0xFF2563A8);
+  static const periwinklePastel = Color(0xFFE8ECFB);
+  static const periwinkleStrong = Color(0xFFB9C6F3);
+  static const navy = Color(0xFF171A2E);
   static const background = Color(0xFFFAFAF8);
   static const surface = Color(0xFFFFFFFF);
   static const ink = Color(0xFF1C2430);

@@ -5,7 +5,7 @@ export function newTagId(): string {
   return randomBytes(12).toString('base64url');
 }
 
-export const TAG_ID_PATTERN = /^[A-Za-z0-9_-]{16}$/;
+export { TAG_ID_PATTERN } from './payload';
 
 /** NTAG216 write password (PWD, 4 bytes) and password acknowledge (PACK, 2 bytes). */
 export interface TagPassword {

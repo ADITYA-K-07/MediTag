@@ -8,7 +8,8 @@ const AAR_TYPE = 'android.com:pkg';
 // NFC Forum URI record prefix codes; the longest matching prefix is stored as one byte.
 const URI_PREFIXES = ['https://www.', 'http://www.', 'https://', 'http://'];
 
-const utf8Length = (s: string) => Buffer.byteLength(s, 'utf8');
+const utf8 = new TextEncoder();
+const utf8Length = (s: string) => utf8.encode(s).length;
 
 /** Size of one NDEF record without an id field: header, type length, payload length (1 byte if < 256, else 4), type, payload. */
 export function recordSize(typeLength: number, payloadLength: number): number {

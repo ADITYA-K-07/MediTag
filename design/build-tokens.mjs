@@ -21,22 +21,15 @@ function flatColors(colors) {
   return out;
 }
 
-function hexToRgba(hex, alpha) {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
-
+// The website is light-only by design: a bright, high-contrast emergency card is easiest to read
+// at the roadside. (tokens.colorDark is still exported to the app.)
 function buildCss() {
   const light = flatColors(tokens.color);
-  const dark = { ...light, ...tokens.colorDark };
-  // In dark mode pastels become 12% tints of their strong colour.
-  for (const [name, value] of Object.entries(tokens.color)) {
-    if (typeof value === 'object') dark[name + 'Pastel'] = hexToRgba(value.strong, 0.16);
-  }
   const vars = (map) => Object.entries(map).map(([k, v]) => `  --${kebab(k)}: ${v};`).join('\n');
   const e = tokens.motion.easing.join(', ');
   return `/* ${HEADER} */
 :root {
+  color-scheme: light;
 ${vars(light)}
   --radius-input: ${tokens.radius.input}px;
   --radius-card: ${tokens.radius.card}px;
@@ -46,14 +39,6 @@ ${vars(light)}
   --ease: cubic-bezier(${e});
   --motion-fast: ${tokens.motion.fastMs}ms;
   --motion-base: ${tokens.motion.baseMs}ms;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-${vars(dark).replace(/^/gm, '  ')}
-  }
-}
-:root[data-theme="dark"] {
-${vars(dark)}
 }
 `;
 }

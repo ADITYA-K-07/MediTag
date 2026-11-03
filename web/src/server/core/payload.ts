@@ -1,5 +1,6 @@
 // Tier-1 emergency payload stored on the tag. See schema/tag-payload.schema.json and schema/README.md.
-import { TAG_ID_PATTERN } from './ids';
+/** Random tag id: 96 bits as 16 base64url characters (see ids.ts). */
+export const TAG_ID_PATTERN = /^[A-Za-z0-9_-]{16}$/;
 
 export const PAYLOAD_VERSION = 1;
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
@@ -102,6 +103,6 @@ export function validatePayload(p: TagPayload): string[] {
   return errors;
 }
 
-export function encodePayloadJson(p: TagPayload): Buffer {
-  return Buffer.from(JSON.stringify(p), 'utf8');
+export function encodePayloadJson(p: TagPayload): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(p));
 }
