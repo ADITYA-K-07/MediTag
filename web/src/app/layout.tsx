@@ -12,6 +12,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#FAFAF8",
+  // Light only: keeps browser-drawn parts (date pickers, scrollbars, autofill) light even on a dark-mode device.
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

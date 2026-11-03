@@ -24,7 +24,8 @@ export const env = {
   /** 32-byte key that encrypts NTAG passwords at rest. */
   secretKey: () => Buffer.from(required("TAG_SECRET_KEY"), "base64"),
   publicBaseUrl: () => process.env.PUBLIC_BASE_URL ?? "https://meditag.vercel.app",
-  supabaseUrl: () => required("SUPABASE_URL"),
+  /** Project root, e.g. https://abcd.supabase.co (tolerates the REST URL `…/rest/v1/` pasted by mistake). */
+  supabaseUrl: () => required("SUPABASE_URL").replace(/\/rest\/v1\/?$/, "").replace(/\/$/, ""),
   supabaseServiceKey: () => required("SUPABASE_SERVICE_ROLE_KEY"),
   supabaseBucket: () => process.env.SUPABASE_BUCKET ?? "records",
 };

@@ -15,6 +15,9 @@ export interface Envelope {
 
 export class EnvelopeError extends Error {}
 
+/** Size of the envelope for a JSON payload of the given length (header + JSON + key id + signature). */
+export const envelopeLength = (jsonLength: number) => HEADER_LENGTH + jsonLength + 1 + SIGNATURE_LENGTH;
+
 export function encodeEnvelope({ json, keyId, signature }: Envelope): Uint8Array {
   if (json.length > MAX_JSON_LENGTH) throw new EnvelopeError('payload too large');
   if (signature.length !== SIGNATURE_LENGTH) throw new EnvelopeError('signature must be 64 bytes');
