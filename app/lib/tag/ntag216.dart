@@ -12,6 +12,8 @@ const _ack = 0x0A;
 const firstUserPage = 0x04;
 const lastUserPage = 0xE1; // 222 pages × 4 bytes = 888 bytes
 const userBytes = (lastUserPage - firstUserPage + 1) * 4;
+const _ccPage = 0x03; // Capability Container: marks the tag as NDEF (one-time programmable bits)
+const _ntag216Cc = [0xE1, 0x10, 0x6D, 0x00]; // NDEF v1.0, 872-byte data area, read/write
 const _cfg0Page = 0xE3; // MIRROR, RFUI, MIRROR_PAGE, AUTH0
 const _cfg1Page = 0xE4; // ACCESS, RFUI, RFUI, RFUI
 const _pwdPage = 0xE5;
@@ -75,10 +77,29 @@ class Ntag216 {
   Future<bool> isLocked() async => (await _read(_cfg0Page))[3] != _authDisabled;
 
   Future<void> authenticate(TagPassword password) async {
-    final res = await _io.transceive(Uint8List.fromList([_cmdPwdAuth, ...password.pwd]));
-    if (res.length < 2 || !_sameBytes(res.sublist(0, 2), password.pack)) {
-      throw TagException("This tag's password doesn't match. It may belong to another account.");
+    const mismatch = "This tag's password doesn't match. It may belong to another account.";
+    final Uint8List res;
+    try {
+      res = await _io.transceive(Uint8List.fromList([_cmdPwdAuth, ...password.pwd]));
+    } catch (_) {
+      // A wrong password is answered with a 4-bit NAK, which many Android phones report as a failed transceive.
+      throw TagException(mismatch);
     }
+    if (res.length < 2 || !_sameBytes(res.sublist(0, 2), password.pack)) throw TagException(mismatch);
+  }
+
+  /// Makes sure phones will see the tag as NDEF. Factory NTAG216s already carry the right Capability
+  /// Container; a blank one gets it written. Anything else (read-only, another format) is refused,
+  /// because CC bits can never be cleared once set.
+  Future<void> ensureNdefFormatted() async {
+    final cc = (await _read(_ccPage)).sublist(0, 4);
+    if (_sameBytes(cc, _ntag216Cc)) return;
+    if (_sameBytes(cc, const [0, 0, 0, 0])) {
+      await _write(_ccPage, _ntag216Cc);
+      return;
+    }
+    if (cc[0] == 0xE1 && cc[3] != 0x00) throw TagException('This tag has been made read-only, so it cannot become a MediTag.');
+    throw TagException('This tag is set up in a format MediTag cannot use. Try a new NTAG216.');
   }
 
   Future<void> writeUserMemory(Uint8List bytes) async {
@@ -118,6 +139,7 @@ Future<void> programNewTag(Ntag216 tag, Uint8List bytes, TagPassword password) a
   if (await tag.isLocked()) {
     throw TagException('This tag is already locked. To change a MediTag, use "Update a tag" instead.');
   }
+  await tag.ensureNdefFormatted();
   await tag.writeUserMemory(bytes);
   await tag.verifyUserMemory(bytes);
   await tag.lock(password);

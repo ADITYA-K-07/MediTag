@@ -57,11 +57,15 @@ async function ownedTag(uid: string, tagId: string) {
 }
 
 /** Citizen: signed payload plus a fresh write password for a new tag. The app writes and locks the tag. */
-export async function prepareTagWrite(uid: string, label: string): Promise<TagWriteResponse> {
+async function assertRoomForAnotherTag(uid: string) {
   const active = await tags().where("ownerUid", "==", uid).where("status", "==", "active").count().get();
   if (active.data().count >= MAX_ACTIVE_TAGS) {
     throw conflict(`You can have at most ${MAX_ACTIVE_TAGS} active tags. Revoke one first.`);
   }
+}
+
+export async function prepareTagWrite(uid: string, label: string): Promise<TagWriteResponse> {
+  await assertRoomForAnotherTag(uid);
   const tagId = newTagId();
   const writePlan = plan(await loadProfile(uid), tagId);
   const { pwd, pack } = newTagPassword();
@@ -76,15 +80,21 @@ export async function prepareTagWrite(uid: string, label: string): Promise<TagWr
 export async function confirmTagWrite(uid: string, tagId: string, nfcUid: string) {
   const { ref, tag } = await ownedTag(uid, tagId);
   if (tag.status === "revoked") throw conflict("This tag was revoked.");
+  // Several tags can be prepared at once, so the limit is checked again when one goes live.
+  if (tag.status === "pending") await assertRoomForAnotherTag(uid);
   await ref.update({ status: "active", nfcUid, writtenAt: FieldValue.serverTimestamp() });
   await audit({ actorUid: uid, action: tag.status === "pending" ? "tag.activated" : "tag.rewritten", tagId });
   return { ok: true };
 }
 
-/** Citizen: re-sign the current profile for an existing tag and return its password so the app can unlock it. */
+/**
+ * Citizen: re-sign the current profile for an existing tag and return its password so the app can unlock it.
+ * Pending tags are allowed too: if the app locked a tag but lost signal before confirming, "Update a tag"
+ * finishes the job instead of leaving a locked tag nobody can change.
+ */
 export async function prepareTagRewrite(uid: string, tagId: string): Promise<TagWriteResponse> {
   const { tag } = await ownedTag(uid, tagId);
-  if (tag.status !== "active") throw conflict("Only active tags can be updated.");
+  if (tag.status === "revoked") throw conflict("This tag was revoked, so it can't be updated.");
   const sealed = (await tagSecrets().doc(tagId).get()).data() as TagSecretDoc | undefined;
   if (!sealed) throw new Error(`tagSecrets/${tagId} missing`);
   const secret = openSecret(sealed.sealed, env.secretKey());

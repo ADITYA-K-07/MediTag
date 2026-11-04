@@ -20,11 +20,14 @@ Uint8List sampleBytes() => meditagTagBytes(
 
 /// An NTAG216 in memory: 231 pages, GET_VERSION, READ (4 pages), WRITE, PWD_AUTH and AUTH0 write protection.
 class FakeNtag216 implements NfcATransport {
-  FakeNtag216({this.storageByte = 0x13}) {
+  FakeNtag216({this.storageByte = 0x13, List<int> cc = const [0xE1, 0x10, 0x6D, 0x00], this.nakThrows = false}) {
+    pages[3] = [...cc];
     pages[0xE3] = [0x04, 0x00, 0x00, 0xFF]; // AUTH0 = 0xFF: no protection
     pages[0xE5] = [0xFF, 0xFF, 0xFF, 0xFF];
   }
   final int storageByte;
+  /// Many Android phones report a NAK as a failed transceive instead of returning it.
+  final bool nakThrows;
   final pages = List.generate(0xE7, (_) => [0, 0, 0, 0]);
   bool authenticated = false;
 
@@ -38,7 +41,11 @@ class FakeNtag216 implements NfcATransport {
       case 0x30:
         return Uint8List.fromList([for (var p = c[1]; p < c[1] + 4; p++) ...pages[p % pages.length]]);
       case 0xA2:
-        if (c[1] >= auth0 && !authenticated) return Uint8List.fromList([0x00]); // NAK
+        if (c[1] >= auth0 && !authenticated) return _nak();
+        if (c[1] == 3) {
+          pages[3] = [for (var i = 0; i < 4; i++) pages[3][i] | c[2 + i]]; // CC bits are one-time programmable
+          return Uint8List.fromList([0x0A]);
+        }
         pages[c[1]] = c.sublist(2, 6);
         return Uint8List.fromList([0x0A]);
       case 0x1B:
@@ -46,10 +53,12 @@ class FakeNtag216 implements NfcATransport {
           authenticated = true;
           return Uint8List.fromList(pages[0xE6].sublist(0, 2));
         }
-        return Uint8List(0);
+        return _nak();
     }
     throw StateError('unknown command ${c[0]}');
   }
+
+  Uint8List _nak() => nakThrows ? throw Exception('Transceive failed') : Uint8List.fromList([0x00]);
 
   Uint8List userMemory(int length) => Uint8List.fromList([for (var p = 4; p < 0xE2; p++) ...pages[p]].sublist(0, length));
 
@@ -127,6 +136,28 @@ void main() {
       await programNewTag(Ntag216(tag), sampleBytes(), password);
       tag.authenticated = false;
       await expectLater(rewriteTag(Ntag216(tag), sampleBytes(), TagPassword.fromHex('00000000', '0000')), throwsA(isA<TagException>()));
+    });
+
+    test('reports a wrong password clearly when the phone throws on NAK', () async {
+      final tag = FakeNtag216(nakThrows: true);
+      await programNewTag(Ntag216(tag), sampleBytes(), password);
+      tag.authenticated = false;
+      await expectLater(
+        rewriteTag(Ntag216(tag), sampleBytes(), TagPassword.fromHex('00000000', '0000')),
+        throwsA(isA<TagException>().having((e) => e.message, 'message', contains("password doesn't match"))),
+      );
+    });
+
+    test('writes the NDEF capability container on a blank tag', () async {
+      final tag = FakeNtag216(cc: const [0, 0, 0, 0]);
+      await programNewTag(Ntag216(tag), sampleBytes(), password);
+      expect(tag.pages[3], [0xE1, 0x10, 0x6D, 0x00]);
+    });
+
+    test('refuses a read-only tag without touching it', () async {
+      final tag = FakeNtag216(cc: const [0xE1, 0x10, 0x6D, 0x0F]);
+      await expectLater(programNewTag(Ntag216(tag), sampleBytes(), password), throwsA(isA<TagException>()));
+      expect(tag.pages[4], [0, 0, 0, 0], reason: 'nothing written');
     });
 
     test('refuses smaller tags such as NTAG213', () async {
